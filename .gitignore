@@ -1,0 +1,10 @@
+logs/
+db/
+db/results.csv
+pid
+__pycache__/
+.env
+*.env
+secrets
+secrets/
+*.secret

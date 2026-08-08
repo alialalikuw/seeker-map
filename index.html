@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device Location Map</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 100vh; width: 100%; }
+        body { margin: 0; padding: 0; }
+        .info { position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info">
+        <h3>Tracked Devices</h3>
+        <div id="count">Loading...</div>
+        <button onclick="loadLocations()">Refresh</button>
+    </div>
+    <script>
+        var map = L.map('map').setView([29.315, 48.020], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png?_t=' + Date.now(), {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+        
+        var markers = [];
+        
+        function loadLocations() {
+            fetch('/db/results.csv')
+                .then(r => r.text())
+                .then(text => {
+                    var lines = text.trim().split('\n').filter(l => l.length > 0);
+                    document.getElementById('count').innerHTML = lines.length + ' device(s)';
+                    
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+                    
+                    lines.forEach(function(line, idx) {
+                        var cols = line.split(',');
+                        var lat = parseFloat(cols[8]);
+                        var lng = parseFloat(cols[9]);
+                        var accuracy = cols[10];
+                        
+                        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                            var marker = L.marker([lat, lng]).addTo(map);
+                            marker.bindPopup('<b>Device ' + (idx+1) + '</b><br>Lat: ' + lat + '<br>Lng: ' + lng + '<br>Accuracy: ' + accuracy + 'm');
+                            markers.push(marker);
+                        }
+                    });
+                })
+                .catch(e => console.error(e));
+        }
+        
+        loadLocations();
+        setInterval(loadLocations, 10000);
+    </script>
+</body>
+</html>

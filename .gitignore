@@ -1,6 +1,4 @@
 logs/
-db/
-db/results.csv
 pid
 __pycache__/
 .env

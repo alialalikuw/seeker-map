@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test CSV Parse</title></head>
+<body>
+<pre id="output"></pre>
+<script>
+fetch('db/results.csv?t=' + Date.now())
+  .then(r => r.text())
+  .then(text => {
+    var lines = text.split(/\r?\n/).filter(l => l.trim().length);
+    document.getElementById('output').textContent = 'Lines: ' + lines.length + '\n\nFirst line columns: ' + lines[0].split(',').length + '\n\nRaw first 500 chars:\n' + lines[0].substring(0, 500);
+  })
+  .catch(e => {
+    document.getElementById('output').textContent = 'ERROR: ' + e.message;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Delete Devices - Seeker</title>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: system-ui; background: #0e1117; color: #e6edf3; padding: 20px; }
+    .device { background: #161b22; border: 1px solid #2a3441; padding: 12px; margin: 8px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .device-info { flex: 1; }
+    .delete-btn { background: #f85149; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    .delete-btn:hover { background: #d0352f; }
+    h1 { margin-top: 0; }
+    .stats { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🗑️ Delete Devices</h1>
+  <div class="stats">Loading...</div>
+  <div id="list"></div>
+  <script>
+    const CSV_URL = 'db/results.csv?t=' + Date.now();
+    
+    function parseCsvLine(line) {
+      var out = [], cur = '', inQ = false;
+      for (var i = 0; i < line.length; i++) {
+        var c = line[i];
+        if (inQ) {
+          if (c === '"') {
+            if (line[i + 1] === '"') { cur += '"'; i++; }
+            else inQ = false;
+          } else cur += c;
+        } else {
+          if (c === '"') inQ = true;
+          else if (c === ',') { out.push(cur); cur = ''; }
+          else cur += c;
+        }
+      }
+      out.push(cur);
+      return out;
+    }
+    
+    fetch(CSV_URL)
+      .then(r => r.text())
+      .then(text => {
+        var lines = text.split(/\r?\n/).filter(l => l.trim());
+        document.querySelector('.stats').textContent = lines.length + ' devices found';
+        
+        var list = document.getElementById('list');
+        lines.forEach((line, idx) => {
+          var cols = parseCsvLine(line);
+          if (cols.length < 10) return;
+          
+          var os = cols[0] || 'Unknown';
+          var ip = cols[8] || 'Unknown';
+          var lat = cols.find(c => c && c.includes('deg')) || '';
+          var lon = cols[cols.indexOf(lat) + 1] || '';
+          
+          var div = document.createElement('div');
+          div.className = 'device';
+          div.innerHTML = 
+            '<div class="device-info">' +
+              '<strong>[' + idx + '] ' + os.substring(0, 40) + '</strong><br>' +
+              '<small>IP: ' + ip + ' | ' + lat + ', ' + lon + '</small>' +
+            '</div>' +
+            '<button class="delete-btn" onclick="deleteDevice(' + idx + ')">Delete</button>';
+          list.appendChild(div);
+        });
+      });
+    
+    function deleteDevice(index) {
+      if (!confirm('Delete device #' + index + '?')) return;
+      
+      fetch(CSV_URL.replace('?t=' + Date.now(), ''))
+        .then(r => r.text())
+        .then(text => {
+          var lines = text.split(/\r?\n/).filter(l => l.trim());
+          lines.splice(index, 1);
+          var newCsv = lines.join('\n');
+          
+          // Save locally (you need to commit this manually or via sync script)
+          var blob = new Blob([newCsv], {type: 'text/csv'});
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'results.csv';
+          a.click();
+          
+          alert('Downloaded updated results.csv - replace the file in seeker/db/ and the sync will push it to GitHub');
+          location.reload();
+        });
+    }
+  </script>
+</body>
+</html>

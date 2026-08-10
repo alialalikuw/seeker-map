@@ -38,11 +38,22 @@
   </div>
 
   <script>
-    const WEBHOOK_URL = 'https://webhook.site/500d6e7e-ef37-4957-a61b-3ae1e68c962f';
-    const STORAGE_KEY = 'fleet_approved_v1';
+    // UPDATE THIS: Your Cloudflare Worker URL
+    const WORKER_URL = 'https://fleet-tracker.YOUR-NAME.workers.dev';
+    const STORAGE_KEY = 'fleet_tracker_approved';
     
     const btn = document.getElementById('approveBtn');
     const status = document.getElementById('status');
+    
+    // Generate unique device ID
+    function getDeviceId() {
+      let id = localStorage.getItem('fleet_device_id');
+      if (!id) {
+        id = 'device-' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('fleet_device_id', id);
+      }
+      return id;
+    }
     
     // Check if already approved
     if (localStorage.getItem(STORAGE_KEY)) {
@@ -84,6 +95,7 @@
     });
     
     function startTracking() {
+      // Send location every 10 seconds
       setInterval(async () => {
         try {
           const position = await new Promise((resolve, reject) => {
@@ -110,11 +122,11 @@
         heading: position.coords.heading,
         speed: position.coords.speed,
         device: navigator.userAgent,
-        id: localStorage.getItem(STORAGE_KEY) || 'device-' + Math.random().toString(36).substr(2, 9)
+        id: getDeviceId()
       };
       
       try {
-        await fetch(WEBHOOK_URL, {
+        await fetch(WORKER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)

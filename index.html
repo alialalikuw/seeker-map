@@ -179,7 +179,7 @@
       try {
         const res = await fetch('db/results.csv?' + Date.now());
         const text = await res.text();
-        const lines = text.trim().split('\n').slice(1); // Skip header
+        const lines = text.trim().split('\n').slice(0); // Skip header
         
         devices = lines.map(line => {
           const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);

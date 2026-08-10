@@ -177,7 +177,7 @@
     // Load devices from CSV
     async function loadDevices() {
       try {
-        const res = await fetch('db/results.csv?' + Date.now());
+        const res = await fetch('https://seeker-map.bu3alwa.workers.dev');
         const text = await res.text();
         const lines = text.trim().split('\n').slice(0); // Skip header
         

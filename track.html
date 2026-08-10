@@ -12,10 +12,11 @@
     .logo { font-size: 48px; margin-bottom: 16px; }
     h1 { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
     .disclosure { background: rgba(47, 129, 247, 0.1); border: 1px solid var(--accent); border-radius: 8px; padding: 16px; margin: 20px 0; text-align: left; font-size: 14px; line-height: 1.6; }
-    .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 14px 32px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 16px; }
+    .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 14px 32px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 16px; transition: opacity 0.2s; }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .status { margin-top: 20px; font-size: 14px; color: var(--muted); }
-    .status.active { color: var(--success); }
+    .status { margin-top: 20px; font-size: 14px; color: var(--muted); min-height: 20px; }
+    .status.active { color: var(--success); font-weight: 600; }
+    .status.error { color: #ef4444; }
   </style>
 </head>
 <body>
@@ -23,6 +24,7 @@
     <div class="logo">📍</div>
     <h1>Fleet Location Share</h1>
     <p style="color: var(--muted); margin-bottom: 20px;">Share your live location with the fleet</p>
+    
     <div class="disclosure">
       <strong>By clicking Approve, you agree to:</strong>
       <ul style="margin: 12px 0 0 20px; color: var(--muted);">
@@ -31,25 +33,30 @@
         <li>Location data stored securely</li>
       </ul>
     </div>
+    
     <button id="approveBtn" class="btn">Approve & Start Sharing</button>
     <div id="status" class="status"></div>
   </div>
+
   <script>
-    const BACKEND = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://gist.githubusercontent.com/alialalikuw/fleet-data/main/locations.json');
-    const GIST_API = 'https://api.github.com/gists/';
-    const GIST_ID = ''; // Will be created
-    const TOKEN = ''; // Public gist, no token needed for read
+    // Backend URL - your ngrok tunnel
+    const BACKEND_URL = 'https://trapezoid-tributary-deny.ngrok-free.dev/fleet/';
+    const STORAGE_KEY = 'fleet_tracking_approved';
     
-    const STORAGE_KEY = 'fleet_approved_v1';
     const btn = document.getElementById('approveBtn');
     const status = document.getElementById('status');
     
+    // Generate unique device ID
     function getDeviceId() {
       let id = localStorage.getItem('fleet_device_id');
-      if (!id) { id = 'device-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('fleet_device_id', id); }
+      if (!id) {
+        id = 'device-' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('fleet_device_id', id);
+      }
       return id;
     }
     
+    // Check if already approved
     if (localStorage.getItem(STORAGE_KEY)) {
       status.textContent = '✅ Location sharing active — you can close this page';
       status.classList.add('active');
@@ -58,36 +65,86 @@
     }
     
     btn.addEventListener('click', async () => {
-      if (!navigator.geolocation) { status.textContent = '❌ Geolocation not supported'; return; }
+      if (!navigator.geolocation) {
+        status.textContent = '❌ Geolocation not supported by your browser';
+        status.classList.add('error');
+        return;
+      }
+      
       btn.disabled = true;
-      status.textContent = '⏳ Requesting permission...';
+      status.textContent = '⏳ Requesting location permission...';
+      
       try {
         const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          });
         });
+        
+        // Approved! Save state
         localStorage.setItem(STORAGE_KEY, 'true');
         status.textContent = '✅ Approved! Starting live tracking...';
         status.classList.add('active');
+        
+        // Send first location
         await sendLocation(position);
+        
+        // Start continuous tracking
         startTracking();
-      } catch (err) { status.textContent = '❌ Error: ' + err.message; btn.disabled = false; }
+        
+      } catch (err) {
+        status.textContent = '❌ ' + (err.message || 'Permission denied');
+        status.classList.add('error');
+        btn.disabled = false;
+      }
     });
     
     function startTracking() {
+      // Send location every 10 seconds
       setInterval(async () => {
         try {
           const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 15000,
+              maximumAge: 0
+            });
           });
           await sendLocation(position);
-        } catch (e) { console.error('Track error:', e); }
+        } catch (e) {
+          console.error('Tracking error:', e);
+        }
       }, 10000);
     }
     
     async function sendLocation(position) {
-      const data = { timestamp: new Date().toISOString(), lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy, id: getDeviceId() };
-      console.log('Would send:', data);
-      // TODO: Send to backend
+      const data = {
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        timestamp: new Date().toISOString(),
+        device_id: getDeviceId()
+      };
+      
+      try {
+        const response = await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          console.log('✓ Location sent:', data.lat.toFixed(5), data.lon.toFixed(5));
+        } else {
+          console.error('✗ Server error:', response.status);
+        }
+      } catch (e) {
+        console.error('✗ Network error:', e.message);
+      }
     }
   </script>
 </body>

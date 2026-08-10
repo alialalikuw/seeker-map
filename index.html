@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Seeker — Live Location Dashboard</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
       --bg: #0e1117;
@@ -196,6 +196,31 @@
     var DELETE_ENDPOINT = 'https://trapezoid-tributary-deny.ngrok-free.dev/delete_handler.php';
     var DELETE_TOKEN = '';   // set if delete_handler.php has ADMIN_TOKEN enabled
 
+    // Guard: if the Leaflet CDN failed to load, L is undefined and every
+    // downstream call would throw, leaving the page stuck on "Loading…".
+    // Surface a clear message instead of a silent blank map.
+    if (typeof L === 'undefined') {
+      var mapEl = document.getElementById('map');
+      if (mapEl) {
+        mapEl.style.display = 'flex';
+        mapEl.style.alignItems = 'center';
+        mapEl.style.justifyContent = 'center';
+        mapEl.style.color = '#8b949e';
+        mapEl.style.padding = '20px';
+        mapEl.style.textAlign = 'center';
+        mapEl.innerHTML = 'Map library failed to load.<br>Check your network connection and reload.';
+      }
+      var listEl = document.getElementById('list');
+      if (listEl) {
+        listEl.innerHTML = '<div class="empty err">Map library (Leaflet) failed to load from the CDN.</div>';
+      }
+      var statusEl = document.getElementById('status');
+      if (statusEl) { statusEl.textContent = 'Map library failed to load'; statusEl.className = 'err'; }
+      return; // abort init — nothing below can work without Leaflet
+    }
+
+    // Initialize the map FIRST so it always renders, independent of whether
+    // the device-data fetch below succeeds.
     var map = L.map('map', { zoomControl: true }).setView([29.315, 48.020], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,

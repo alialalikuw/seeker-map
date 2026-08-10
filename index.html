@@ -8,209 +8,85 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    :root {
-      --bg: #0e1117; --panel: #161b22; --panel-2: #1c2430;
-      --border: #2a3441; --text: #e6edf3; --muted: #8b949e;
-      --accent: #2f81f7; --success: #3fb950; --danger: #f85149;
-    }
+    :root { --bg: #0e1117; --panel: #161b22; --panel-2: #1c2430; --border: #2a3441; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --success: #3fb950; }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overflow: hidden; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
-      display: grid; grid-template-columns: 360px 1fr;
-    }
-    
-    /* Sidebar */
-    #sidebar {
-      background: var(--panel); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; height: 100vh;
-    }
-    header {
-      padding: 14px 18px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 10px;
-      background: linear-gradient(180deg, var(--panel-2) 0%, var(--panel) 100%);
-    }
-    header .dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
-      box-shadow: 0 0 10px var(--success);
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.7; transform: scale(1.1); }
-    }
-    header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
-    
-    /* Stats */
-    .stats {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-      padding: 14px 18px; border-bottom: 1px solid var(--border);
-    }
-    .stat {
-      background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 12px; text-align: center;
-    }
-    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
-    .stat .value { font-size: 22px; font-weight: 700; color: var(--text); }
-    
-    /* Toolbar */
-    .toolbar {
-      display: flex; align-items: center; gap: 8px; padding: 12px 18px;
-      border-bottom: 1px solid var(--border);
-    }
-    .toolbar .spacer { flex: 1; }
-    .btn {
-      background: var(--accent); color: #fff; border: none;
-      border-radius: 8px; padding: 8px 14px; font-size: 13px;
-      font-weight: 600; cursor: pointer; transition: all 0.15s;
-    }
-    .btn:active { transform: scale(0.97); }
-    .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    
-    /* Device List */
+    body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 360px 1fr; }
+    #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; }
+    header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    header h1 { font-size: 16px; font-weight: 600; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center; }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .stat .value { font-size: 22px; font-weight: 700; }
+    .toolbar { display: flex; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+    .btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn.ghost { background: transparent; border: 1px solid var(--border); }
     #deviceList { flex: 1; overflow-y: auto; padding: 12px 18px; }
-    .device-card {
-      background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px; margin-bottom: 10px;
-      cursor: pointer; transition: all 0.15s;
-    }
-    .device-card:hover { border-color: var(--accent); background: rgba(47,129,247,0.08); }
-    .device-card:active { transform: scale(0.98); }
-    .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .device-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; cursor: pointer; }
+    .device-card:hover { border-color: var(--accent); }
+    .device-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .device-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
     .device-dot { width: 10px; height: 10px; border-radius: 50%; }
     .device-meta { font-size: 12px; color: var(--muted); line-height: 1.7; }
-    .device-meta b { color: var(--text); font-weight: 600; }
-    .empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 13px; }
-    
-    /* Map */
-    #map { height: 100vh; width: 100%; }
-    
-    /* Status bar */
-    .status-bar {
-      padding: 10px 18px; border-top: 1px solid var(--border);
-      font-size: 12px; color: var(--muted); text-align: center;
-      background: var(--panel-2);
-    }
+    .device-meta b { color: var(--text); }
+    .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+    #map { height: 100vh; }
+    .status-bar { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); text-align: center; }
     .status-bar b { color: var(--success); }
-    
-    /* iPhone Responsive */
-    @media (max-width: 768px) {
-      body { grid-template-columns: 1fr; grid-template-rows: 50vh 50vh; }
-      #sidebar { height: auto; border-right: none; border-bottom: 1px solid var(--border); }
-      #map { height: 50vh; }
-      .stats { grid-template-columns: 1fr 1fr; }
-      header h1 { font-size: 15px; }
-    }
-    
-    @media (max-width: 480px) {
-      body { grid-template-rows: 45vh 55vh; }
-      .stats { padding: 10px 14px; gap: 8px; }
-      .stat { padding: 10px; border-radius: 8px; }
-      .stat .value { font-size: 18px; }
-      .stat .label { font-size: 10px; }
-      header { padding: 12px 14px; }
-      #deviceList { padding: 10px 14px; }
-      .device-card { padding: 12px; border-radius: 8px; }
-    }
-    
-    /* Leaflet popup styling */
-    .leaflet-popup-content-wrapper {
-      background: var(--panel-2); color: var(--text);
-      border: 1px solid var(--border); border-radius: 8px;
-    }
-    .leaflet-popup-tip { background: var(--panel-2); }
-    .leaflet-popup-content { margin: 12px; font-size: 13px; line-height: 1.6; }
+    @media (max-width: 768px) { body { grid-template-columns: 1fr; grid-template-rows: 50vh 50vh; } #sidebar { border-right: none; border-bottom: 1px solid var(--border); } #map { height: 50vh; } }
   </style>
 </head>
 <body>
   <div id="sidebar">
-    <header>
-      <div class="dot"></div>
-      <h1>Seeker · Live Tracking</h1>
-    </header>
-    
+    <header><div class="dot"></div><h1>Seeker · Live Tracking</h1></header>
     <div class="stats">
-      <div class="stat">
-        <div class="label">Devices</div>
-        <div class="value" id="deviceCount">0</div>
-      </div>
-      <div class="stat">
-        <div class="label">Located</div>
-        <div class="value" id="locatedCount">0</div>
-      </div>
+      <div class="stat"><div class="label">Devices</div><div class="value" id="deviceCount">0</div></div>
+      <div class="stat"><div class="label">Located</div><div class="value" id="locatedCount">0</div></div>
     </div>
-    
     <div class="toolbar">
-      <button class="btn ghost" id="fitBtn">Fit</button>
-      <button class="btn" id="refreshBtn">Refresh</button>
-      <div class="spacer"></div>
+      <button class="btn ghost" onclick="fitMap()">Fit</button>
+      <button class="btn" onclick="loadDevices()">Refresh</button>
     </div>
-    
-    <div id="deviceList">
-      <div class="empty">Loading device data…</div>
-    </div>
-    
-    <div class="status-bar">
-      Updated: <b id="lastUpdate">--:--:--</b> · Auto-refresh 10s
-    </div>
+    <div id="deviceList"><div class="empty">Loading...</div></div>
+    <div class="status-bar">Updated: <b id="lastUpdate">--:--:--</b> · Auto-refresh 10s</div>
   </div>
-  
   <div id="map"></div>
 
   <script>
-    // Device colors
-    const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#14b8a6', '#06b6d4', '#f43f5e', '#8b5cf6'];
+    const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#14b8a6', '#06b6d4'];
+    const BACKEND_URL = 'https://api.jsonbin.io/v3/b/68a8f9e2ad19ca34f86f7d5c';
+    const API_KEY = '$2a$10$XpKqZ5vN8yH.R3LxYqJwLOJxKqN5vN8yH.R3LxYqJwLOJxKqN5vN8';
     
     let map, markers = {}, devices = [];
     
-    // Initialize map
     function initMap() {
-      map = L.map('map', { zoomControl: true }).setView([29.3759, 47.9774], 10);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-        maxZoom: 19
-      }).addTo(map);
+      map = L.map('map').setView([29.3759, 47.9774], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     }
     
-    // Load devices from CSV
     async function loadDevices() {
       try {
-        const res = await fetch('https://seeker-map.bu3alwa.workers.dev');
-        const text = await res.text();
-        const lines = text.trim().split('\n').slice(0); // Skip header
-        
-        devices = lines.map(line => {
-          const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          const lat = parseFloat(cols[14]) || 0;
-          const lon = parseFloat(cols[15]) || 0;
-          const acc = parseFloat(cols[16]) || 0;
-          const device = cols[0].replace(/"/g, '') || 'Unknown';
-          const ip = cols[8].replace(/"/g, '') || 'Unknown';
-          return { lat, lon, acc, device, ip };
-        }).filter(d => d.lat && d.lon);
-        
+        const res = await fetch(BACKEND_URL, { headers: { 'X-Master-Key': API_KEY } });
+        const data = await res.json();
+        devices = data.record || [];
         updateUI();
       } catch (e) {
         console.error('Load failed:', e);
-        document.getElementById('deviceList').innerHTML = '<div class="empty">Waiting for location data…</div>';
+        document.getElementById('deviceList').innerHTML = '<div class="empty">Waiting for data...</div>';
       }
     }
     
-    // Update UI
     function updateUI() {
-      const deviceCount = document.getElementById('deviceCount');
-      const locatedCount = document.getElementById('locatedCount');
-      const lastUpdate = document.getElementById('lastUpdate');
+      document.getElementById('deviceCount').textContent = devices.length;
+      document.getElementById('locatedCount').textContent = devices.filter(d => d.lat).length;
+      document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+      
       const list = document.getElementById('deviceList');
-      
-      deviceCount.textContent = devices.length;
-      locatedCount.textContent = devices.filter(d => d.lat).length;
-      lastUpdate.textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      
       if (devices.length === 0) {
-        list.innerHTML = '<div class="empty">No devices yet. Share the fleet link!</div>';
+        list.innerHTML = '<div class="empty">No devices yet. Share track.html!</div>';
         return;
       }
       
@@ -222,15 +98,12 @@
         card.onclick = () => focusDevice(i);
         card.innerHTML = `
           <div class="device-header">
-            <span class="device-name">
-              <span class="device-dot" style="background:${color}"></span>
-              Device ${i + 1}
-            </span>
+            <span class="device-name"><span class="device-dot" style="background:${color}"></span>Device ${i + 1}</span>
           </div>
           <div class="device-meta">
             <b>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}</b><br>
-            Accuracy: ${Math.round(device.acc)}m<br>
-            IP: ${device.ip}
+            Accuracy: ${Math.round(device.accuracy)}m<br>
+            Updated: ${new Date(device.timestamp).toLocaleTimeString()}
           </div>
         `;
         list.appendChild(card);
@@ -238,21 +111,19 @@
       });
     }
     
-    // Update marker
     function updateMarker(device, color, index) {
       const id = 'device-' + index;
       if (markers[id]) {
         markers[id].setLatLng([device.lat, device.lon]);
       } else {
         const circle = L.circleMarker([device.lat, device.lon], {
-          radius: 12, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.85
+          radius: 12, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.85
         }).addTo(map);
-        circle.bindPopup(`<b>Device ${index + 1}</b><br>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}<br>±${Math.round(device.acc)}m`);
+        circle.bindPopup(`<b>Device ${index + 1}</b><br>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`);
         markers[id] = circle;
       }
     }
     
-    // Focus on device
     function focusDevice(index) {
       const device = devices[index];
       if (device) {
@@ -262,23 +133,14 @@
       }
     }
     
-    // Fit map to all devices
     function fitMap() {
       if (devices.length === 0) return;
-      const bounds = devices.map(d => [d.lat, d.lon]);
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      map.fitBounds(devices.map(d => [d.lat, d.lon]), { padding: [40, 40] });
     }
     
-    // Auto-refresh
     setInterval(loadDevices, 10000);
-    
-    // Init
     initMap();
     loadDevices();
-    
-    // Button handlers
-    document.getElementById('fitBtn').onclick = fitMap;
-    document.getElementById('refreshBtn').onclick = loadDevices;
   </script>
 </body>
 </html>

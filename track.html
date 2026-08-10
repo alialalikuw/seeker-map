@@ -25,6 +25,9 @@
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .coords { background: rgba(139, 148, 158, 0.1); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; color: var(--muted); margin-top: 16px; }
     .coords b { color: var(--text); }
+    .device-id-box { background: rgba(47, 129, 247, 0.15); border: 1px solid rgba(47, 129, 247, 0.3); border-radius: 8px; padding: 12px; margin-top: 16px; }
+    .device-id-box .label { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .device-id-box .id { font-family: monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
     .info { font-size: 12px; color: var(--muted); margin-top: 16px; }
   </style>
 </head>
@@ -41,6 +44,11 @@
     
     <button id="startBtn" class="btn" onclick="startTracking()">Approve & Start Sharing</button>
     
+    <div class="device-id-box">
+      <div class="label">Your Device ID (permanent)</div>
+      <div class="id" id="deviceId">Loading...</div>
+    </div>
+    
     <div id="coords" class="coords" style="display: none;">
       <b>Latitude:</b> <span id="lat">--</span><br>
       <b>Longitude:</b> <span id="lon">--</span><br>
@@ -49,8 +57,7 @@
     
     <div class="info">
       Last update: <span id="lastUpdate">--:--:--</span><br>
-      Updates sent: <span id="updateCount">0</span><br>
-      Device ID: <span id="deviceId">--</span>
+      Updates sent: <span id="updateCount">0</span>
     </div>
   </div>
 
@@ -58,12 +65,17 @@
     const BACKEND_URL = 'https://trapezoid-tributary-deny.ngrok-free.dev/fleet/handler.php';
     let watchId = null, updateCount = 0, isTracking = false;
     
-    // Get or create persistent device ID
-    let deviceId = localStorage.getItem('seeker_device_id');
-    if (!deviceId) {
-      deviceId = 'device-' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('seeker_device_id', deviceId);
+    // Get or create PERSISTENT device ID (saved forever in localStorage)
+    function getDeviceId() {
+      let id = localStorage.getItem('seeker_device_id');
+      if (!id) {
+        id = 'device-' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('seeker_device_id', id);
+      }
+      return id;
     }
+    
+    const deviceId = getDeviceId();
     document.getElementById('deviceId').textContent = deviceId;
     
     function setStatus(state, text) {
@@ -96,6 +108,7 @@
             device_id: deviceId
           })
         });
+        console.log('Sent:', { lat, lon, acc, device_id: deviceId });
       } catch (e) {
         console.error('Send failed:', e);
       }

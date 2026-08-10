@@ -52,7 +52,6 @@
     <div class="toolbar">
       <button class="btn ghost" onclick="fitMap()">Fit</button>
       <button class="btn" onclick="loadDevices()">Refresh</button>
-      <button class="btn ghost" onclick="resetDeleted()" title="Show hidden devices">↺ Reset</button>
     </div>
     <div id="deviceList"><div class="empty">Loading...</div></div>
     <div class="status-bar">Updated: <b id="lastUpdate">--:--:--</b> · Auto-refresh 10s</div>
@@ -79,10 +78,6 @@
         
         console.log('CSV loaded:', lines.length, 'lines');
         
-        // Get deleted devices from localStorage
-        const deletedDevices = JSON.parse(localStorage.getItem('seeker_deleted_devices') || '[]');
-        console.log('Hidden devices:', deletedDevices);
-        
         // Group by device_id, keep latest for each
         const deviceMap = new Map();
         
@@ -98,12 +93,6 @@
           const acc = parseFloat(cols[4]) || 0;
           
           console.log('Parsed:', { timestamp, deviceId, lat, lon, acc });
-          
-          // Skip deleted devices
-          if (deletedDevices.includes(deviceId)) {
-            console.log('Skipping hidden device:', deviceId);
-            return;
-          }
           
           // Validate (Kuwait area: 28-31°N, 46-49°E)
           if (lat > 28 && lat < 31 && lon > 46 && lon < 49 && !isNaN(lat) && !isNaN(lon)) {
@@ -174,18 +163,29 @@
     }
     
     async function deleteDevice(deviceId) {
-      const confirmMsg = `Hide ${deviceId} from dashboard?\n\nThis removes it from your view (stored in browser).`;
+      const confirmMsg = `Permanently delete ${deviceId}?\n\nThis removes it from the CSV file (cannot undo).`;
       if (!confirm(confirmMsg)) return;
       
-      // Store deleted device IDs in localStorage
-      let deleted = JSON.parse(localStorage.getItem('seeker_deleted_devices') || '[]');
-      if (!deleted.includes(deviceId)) {
-        deleted.push(deviceId);
-        localStorage.setItem('seeker_deleted_devices', JSON.stringify(deleted));
+      try {
+        // Call PHP backend to delete from CSV
+        const res = await fetch('https://trapezoid-tributary-deny.ngrok-free.dev/fleet/delete_handler.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_id: deviceId })
+        });
+        
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err || 'Delete failed');
+        }
+        
+        const result = await res.json();
+        alert(result.message || 'Device deleted permanently!');
+        loadDevices(); // Refresh list
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+        console.error('Delete error:', e);
       }
-      
-      alert(`${deviceId} hidden. To show again: Settings → Clear Browser Data`);
-      loadDevices(); // Refresh list
     }
     
     function updateMarker(device, color, index) {
@@ -214,18 +214,6 @@
     function fitMap() {
       if (devices.length === 0) return;
       map.fitBounds(devices.map(d => [d.lat, d.lon]), { padding: [40, 40] });
-    }
-    
-    function resetDeleted() {
-      const count = JSON.parse(localStorage.getItem('seeker_deleted_devices') || '[]').length;
-      if (count === 0) {
-        alert('No hidden devices to show.');
-        return;
-      }
-      if (confirm(`Show all ${count} hidden device(s)?`)) {
-        localStorage.removeItem('seeker_deleted_devices');
-        loadDevices();
-      }
     }
     
     setInterval(loadDevices, 10000);

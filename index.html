@@ -11,7 +11,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overflow: hidden; }
     body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 360px 1fr; }
-    #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; }
+    #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
     header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
     header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success); animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
@@ -35,7 +35,7 @@
     #map { height: 100vh; }
     .status-bar { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); text-align: center; }
     .status-bar b { color: var(--success); }
-    @media (max-width: 768px) { body { grid-template-columns: 1fr; grid-template-rows: 50vh 50vh; } #sidebar { border-right: none; border-bottom: 1px solid var(--border); } #map { height: 50vh; } }
+    @media (max-width: 768px) { body { grid-template-columns: 1fr; grid-template-rows: 45vh 55vh; } #sidebar { border-right: none; border-bottom: 1px solid var(--border); } #map { height: 55vh; } }
   </style>
 </head>
 <body>
@@ -64,7 +64,6 @@
     }
     
     function parseCSVLine(line) {
-      // Handle quoted CSV fields
       const cols = [];
       let current = '', inQuotes = false;
       for (let i = 0; i < line.length; i++) {
@@ -84,7 +83,7 @@
     
     function extractNumber(str) {
       if (!str) return 0;
-      const match = str.match(/([\d.]+)/);
+      const match = str.match(/(-?[\d.]+)/);
       return match ? parseFloat(match[1]) : 0;
     }
     
@@ -94,36 +93,42 @@
         const text = await res.text();
         const lines = text.trim().split('\n');
         
+        console.log('CSV loaded:', lines.length, 'lines');
         devices = [];
+        
         lines.forEach((line, idx) => {
           const cols = parseCSVLine(line);
-          if (cols.length < 16) return;
+          if (cols.length < 16) {
+            console.log('Line', idx, 'skipped (cols:', cols.length, ')');
+            return;
+          }
           
-          // Try multiple column positions (format may vary)
-          let lat = 0, lon = 0, acc = 0;
+          // Extract lat/lon from columns 17,18 (0-indexed: 16,17)
+          let lat = extractNumber(cols[16]);
+          let lon = extractNumber(cols[17]);
+          let acc = extractNumber(cols[18]);
           
-          // Try columns 16,17,18 first (new format with "Not Available" fields)
-          lat = extractNumber(cols[16]);
-          lon = extractNumber(cols[17]);
-          acc = extractNumber(cols[18]);
-          
-          // Fallback to columns 17,18,19 (old format)
+          // Fallback to columns 18,19 if needed
           if (!lat || !lon) {
             lat = extractNumber(cols[17]);
             lon = extractNumber(cols[18]);
             acc = extractNumber(cols[19]);
           }
           
-          // Validate coordinates (Kuwait area)
+          console.log('Line', idx, '→ lat:', lat, 'lon:', lon);
+          
+          // Validate (Kuwait area: 28-31°N, 46-49°E)
           if (lat > 28 && lat < 31 && lon > 46 && lon < 49) {
             devices.push({ lat, lon, acc });
+            console.log('✓ Device added:', lat.toFixed(4), lon.toFixed(4));
           }
         });
         
+        console.log('Total devices:', devices.length);
         updateUI();
       } catch (e) {
         console.error('Load failed:', e);
-        document.getElementById('deviceList').innerHTML = '<div class="empty">Waiting for data...</div>';
+        document.getElementById('deviceList').innerHTML = '<div class="empty">Error loading data</div>';
       }
     }
     

@@ -59,8 +59,8 @@
     const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#14b8a6', '#06b6d4'];
     let map, markers = {}, devices = [];
     
-    // Use raw.githubusercontent.com (no CDN cache) with timestamp
-    const CSV_URL = 'https://raw.githubusercontent.com/alialalikuw/seeker-map/main/db/results.csv';
+    // Use GitHub Pages with CORS proxy to bypass cache
+    const CSV_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://raw.githubusercontent.com/alialalikuw/seeker-map/main/db/results.csv');
     
     function initMap() {
       map = L.map('map').setView([29.3759, 47.9774], 10);

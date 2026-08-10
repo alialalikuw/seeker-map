@@ -49,13 +49,22 @@
     
     <div class="info">
       Last update: <span id="lastUpdate">--:--:--</span><br>
-      Updates sent: <span id="updateCount">0</span>
+      Updates sent: <span id="updateCount">0</span><br>
+      Device ID: <span id="deviceId">--</span>
     </div>
   </div>
 
   <script>
     const BACKEND_URL = 'https://trapezoid-tributary-deny.ngrok-free.dev/fleet/handler.php';
     let watchId = null, updateCount = 0, isTracking = false;
+    
+    // Get or create persistent device ID
+    let deviceId = localStorage.getItem('seeker_device_id');
+    if (!deviceId) {
+      deviceId = 'device-' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('seeker_device_id', deviceId);
+    }
+    document.getElementById('deviceId').textContent = deviceId;
     
     function setStatus(state, text) {
       const statusEl = document.getElementById('status');
@@ -84,7 +93,7 @@
             accuracy: acc,
             speed: 0,
             timestamp: Date.now(),
-            device_id: localStorage.getItem('seeker_device_id') || localStorage.setItem('seeker_device_id', 'device-' + Math.random().toString(36).substr(2, 9)) || localStorage.getItem('seeker_device_id')
+            device_id: deviceId
           })
         });
       } catch (e) {
@@ -116,7 +125,7 @@
         setStatus('error', 'Location unavailable');
       } else if (err.code === 3) {
         setStatus('pending', 'Location timeout. Retrying...');
-        startTracking(); // Retry
+        startTracking();
       }
     }
     

@@ -1,18 +1,61 @@
 <!DOCTYPE html>
-<html>
-<head><title>Test CSV Parse</title></head>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CSV Test</title>
+<style>body{font-family:system-ui;background:#0e1117;color:#e6edf3;padding:20px;font-size:14px;}pre{background:#161b22;padding:10px;border-radius:6px;overflow-x:auto;}.ok{color:#3fb950;}.err{color:#ef4444;}</style></head>
 <body>
-<pre id="output"></pre>
+<h1>🧪 CSV Data Test</h1>
+<div id="status">Loading...</div>
+<h2>Raw CSV (last 3 lines):</h2>
+<pre id="raw"></pre>
+<h2>Parsed Coordinates:</h2>
+<div id="coords"></div>
+
 <script>
-fetch('db/results.csv?t=' + Date.now())
-  .then(r => r.text())
-  .then(text => {
-    var lines = text.split(/\r?\n/).filter(l => l.trim().length);
-    document.getElementById('output').textContent = 'Lines: ' + lines.length + '\n\nFirst line columns: ' + lines[0].split(',').length + '\n\nRaw first 500 chars:\n' + lines[0].substring(0, 500);
-  })
-  .catch(e => {
-    document.getElementById('output').textContent = 'ERROR: ' + e.message;
+fetch('db/results.csv?t='+Date.now())
+.then(r=>{console.log('Status:',r.status);return r.text();})
+.then(text=>{
+  const lines=text.trim().split('\n');
+  document.getElementById('status').innerHTML='<p class="ok">✅ CSV loaded: '+lines.length+' lines</p>';
+  
+  // Show last 3 lines raw
+  document.getElementById('raw').textContent=lines.slice(-3).join('\n');
+  
+  // Parse and show coordinates
+  let html='';
+  lines.forEach((line,i)=>{
+    const cols=line.split(',');
+    if(cols.length>16){
+      const lat=(cols[16]||'').replace(/"/g,'').replace(' deg','').trim();
+      const lon=(cols[17]||'').replace(/"/g,'').replace(' deg','').trim();
+      const numLat=parseFloat(lat);
+      const numLon=parseFloat(lon);
+      if(numLat>28&&numLat<31&&numLon>46&&numLon<49){
+        html+='<p class="ok"><b>Line '+i+':</b> '+numLat.toFixed(6)+', '+numLon.toFixed(6)+' ✅</p>';
+      }
+    }
   });
+  
+  if(html===''){
+    html='<p class="err">❌ No valid Kuwait coordinates found</p>';
+    html+='<p>Trying fallback columns...</p>';
+    lines.forEach((line,i)=>{
+      const cols=line.split(',');
+      if(cols.length>17){
+        const lat=(cols[17]||'').replace(/"/g,'').replace(' deg','').trim();
+        const lon=(cols[18]||'').replace(/"/g,'').replace(' deg','').trim();
+        const numLat=parseFloat(lat);
+        const numLon=parseFloat(lon);
+        if(numLat>28&&numLat<31){
+          html+='<p class="ok"><b>Line '+i+' (fallback):</b> '+numLat.toFixed(6)+', '+numLon.toFixed(6)+' ✅</p>';
+        }
+      }
+    });
+  }
+  
+  document.getElementById('coords').innerHTML=html;
+})
+.catch(e=>{
+  document.getElementById('status').innerHTML='<p class="err">❌ Error: '+e+'</p>';
+  console.error(e);
+});
 </script>
-</body>
-</html>
+</body></html>

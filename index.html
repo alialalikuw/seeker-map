@@ -63,6 +63,31 @@
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     }
     
+    function parseCSVLine(line) {
+      // Handle quoted CSV fields
+      const cols = [];
+      let current = '', inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          cols.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      cols.push(current.trim().replace(/^"|"$/g, ''));
+      return cols;
+    }
+    
+    function extractNumber(str) {
+      if (!str) return 0;
+      const match = str.match(/([\d.]+)/);
+      return match ? parseFloat(match[1]) : 0;
+    }
+    
     async function loadDevices() {
       try {
         const res = await fetch('db/results.csv?t=' + Date.now());
@@ -70,21 +95,27 @@
         const lines = text.trim().split('\n');
         
         devices = [];
-        lines.forEach(line => {
-          // Parse CSV properly (handle quoted fields)
-          const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-          if (cols.length < 18) return;
+        lines.forEach((line, idx) => {
+          const cols = parseCSVLine(line);
+          if (cols.length < 16) return;
           
-          // Extract lat/lon from "XX deg" format
-          const latStr = cols[17] ? cols[17].replace(/"/g, '').replace(' deg', '') : '0';
-          const lonStr = cols[18] ? cols[18].replace(/"/g, '').replace(' deg', '') : '0';
-          const accStr = cols[19] ? cols[19].replace(/"/g, '').replace(' m', '') : '0';
+          // Try multiple column positions (format may vary)
+          let lat = 0, lon = 0, acc = 0;
           
-          const lat = parseFloat(latStr);
-          const lon = parseFloat(lonStr);
-          const acc = parseFloat(accStr);
+          // Try columns 16,17,18 first (new format with "Not Available" fields)
+          lat = extractNumber(cols[16]);
+          lon = extractNumber(cols[17]);
+          acc = extractNumber(cols[18]);
           
-          if (lat && lon && lat > 0 && lat < 90 && lon > 0 && lon < 90) {
+          // Fallback to columns 17,18,19 (old format)
+          if (!lat || !lon) {
+            lat = extractNumber(cols[17]);
+            lon = extractNumber(cols[18]);
+            acc = extractNumber(cols[19]);
+          }
+          
+          // Validate coordinates (Kuwait area)
+          if (lat > 28 && lat < 31 && lon > 46 && lon < 49) {
             devices.push({ lat, lon, acc });
           }
         });

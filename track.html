@@ -2,150 +2,163 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fleet Location Share</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Seeker · Share Location</title>
   <style>
-    :root { --bg: #0e1117; --panel: #161b22; --border: #2a3441; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --success: #3fb950; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .container { max-width: 500px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 32px; text-align: center; }
-    .logo { font-size: 48px; margin-bottom: 16px; }
-    h1 { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
-    .disclosure { background: rgba(47, 129, 247, 0.1); border: 1px solid var(--accent); border-radius: 8px; padding: 16px; margin: 20px 0; text-align: left; font-size: 14px; line-height: 1.6; }
-    .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 14px 32px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 16px; transition: opacity 0.2s; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .status { margin-top: 20px; font-size: 14px; color: var(--muted); min-height: 20px; }
-    .status.active { color: var(--success); font-weight: 600; }
-    .status.error { color: #ef4444; }
+    :root { --bg: #0e1117; --panel: #161b22; --border: #2a3441; --text: #e6edf3; --muted: #8b949e; --success: #3fb950; --error: #ef4444; --warning: #f0b72a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; text-align: center; }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+    .status { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; font-weight: 600; }
+    .status.active { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+    .status.pending { background: rgba(240, 183, 42, 0.15); color: var(--warning); }
+    .status.error { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
+    .active .dot { background: var(--success); box-shadow: 0 0 10px var(--success); }
+    .pending .dot { background: var(--warning); }
+    .error .dot { background: var(--error); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .btn { background: var(--success); color: #fff; border: none; border-radius: 10px; padding: 14px 24px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .coords { background: rgba(139, 148, 158, 0.1); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; color: var(--muted); margin-top: 16px; }
+    .coords b { color: var(--text); }
+    .info { font-size: 12px; color: var(--muted); margin-top: 16px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">📍</div>
-    <h1>Fleet Location Share</h1>
-    <p style="color: var(--muted); margin-bottom: 20px;">Share your live location with the fleet</p>
+  <div class="card">
+    <div class="icon">📍</div>
+    <h1>Share Your Location</h1>
+    <p>This page shares your live GPS location with the fleet dashboard. Keep this page open for continuous tracking.</p>
     
-    <div class="disclosure">
-      <strong>By clicking Approve, you agree to:</strong>
-      <ul style="margin: 12px 0 0 20px; color: var(--muted);">
-        <li>Share your GPS location with the fleet dashboard</li>
-        <li>Continuous background tracking (updates every 10 seconds)</li>
-        <li>Location data stored securely</li>
-      </ul>
+    <div id="status" class="status pending">
+      <span class="dot"></span>
+      <span id="statusText">Waiting for permission...</span>
     </div>
     
-    <button id="approveBtn" class="btn">Approve & Start Sharing</button>
-    <div id="status" class="status"></div>
+    <button id="startBtn" class="btn" onclick="startTracking()">Approve & Start Sharing</button>
+    
+    <div id="coords" class="coords" style="display: none;">
+      <b>Latitude:</b> <span id="lat">--</span><br>
+      <b>Longitude:</b> <span id="lon">--</span><br>
+      <b>Accuracy:</b> <span id="acc">--</span>m
+    </div>
+    
+    <div class="info">
+      Last update: <span id="lastUpdate">--:--:--</span><br>
+      Updates sent: <span id="updateCount">0</span>
+    </div>
   </div>
 
   <script>
-    // Backend URL - your ngrok tunnel (updated 2026-08-10 14:24)
-    const BACKEND_URL = "https://trapezoid-tributary-deny.ngrok-free.dev/fleet/handler.php";
-    const STORAGE_KEY = 'fleet_tracking_approved';
+    const BACKEND_URL = 'https://trapezoid-tributary-deny.ngrok-free.dev/fleet/handler.php';
+    let watchId = null, updateCount = 0, isTracking = false;
     
-    const btn = document.getElementById('approveBtn');
-    const status = document.getElementById('status');
+    function setStatus(state, text) {
+      const statusEl = document.getElementById('status');
+      const statusText = document.getElementById('statusText');
+      statusEl.className = 'status ' + state;
+      statusText.textContent = text;
+    }
     
-    // Generate unique device ID
-    function getDeviceId() {
-      let id = localStorage.getItem('fleet_device_id');
-      if (!id) {
-        id = 'device-' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('fleet_device_id', id);
+    function updateCoords(lat, lon, acc) {
+      document.getElementById('coords').style.display = 'block';
+      document.getElementById('lat').textContent = lat.toFixed(6);
+      document.getElementById('lon').textContent = lon.toFixed(6);
+      document.getElementById('acc').textContent = Math.round(acc);
+      document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+      document.getElementById('updateCount').textContent = ++updateCount;
+    }
+    
+    async function sendLocation(lat, lon, acc) {
+      try {
+        await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lat: lat,
+            lon: lon,
+            accuracy: acc,
+            speed: 0,
+            timestamp: Date.now(),
+            device_id: 'device-' + Math.random().toString(36).substr(2, 9)
+          })
+        });
+      } catch (e) {
+        console.error('Send failed:', e);
       }
-      return id;
     }
     
-    // Check if already approved
-    if (localStorage.getItem(STORAGE_KEY)) {
-      status.textContent = '✅ Location sharing active — you can close this page';
-      status.classList.add('active');
-      btn.disabled = true;
-      startTracking();
+    function onPosition(pos) {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const acc = pos.coords.accuracy;
+      
+      updateCoords(lat, lon, acc);
+      sendLocation(lat, lon, acc);
+      
+      if (!isTracking) {
+        isTracking = true;
+        setStatus('active', 'Location sharing active');
+        document.getElementById('startBtn').textContent = 'Sharing Location (tap to stop)';
+        document.getElementById('startBtn').onclick = stopTracking;
+      }
     }
     
-    btn.addEventListener('click', async () => {
-      if (!navigator.geolocation) {
-        status.textContent = '❌ Geolocation not supported by your browser';
-        status.classList.add('error');
+    function onError(err) {
+      console.error('Location error:', err);
+      if (err.code === 1) {
+        setStatus('error', 'Permission denied. Tap button to allow.');
+      } else if (err.code === 2) {
+        setStatus('error', 'Location unavailable');
+      } else if (err.code === 3) {
+        setStatus('pending', 'Location timeout. Retrying...');
+        startTracking(); // Retry
+      }
+    }
+    
+    function startTracking() {
+      if (watchId) {
+        stopTracking();
         return;
       }
       
-      btn.disabled = true;
-      status.textContent = '⏳ Requesting location permission...';
+      setStatus('pending', 'Requesting permission...');
       
-      try {
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-          });
-        });
-        
-        // Approved! Save state
-        localStorage.setItem(STORAGE_KEY, 'true');
-        status.textContent = '✅ Approved! Starting live tracking...';
-        status.classList.add('active');
-        
-        // Send first location
-        await sendLocation(position);
-        
-        // Start continuous tracking
-        startTracking();
-        
-      } catch (err) {
-        status.textContent = '❌ ' + (err.message || 'Permission denied');
-        status.classList.add('error');
-        btn.disabled = false;
-      }
-    });
-    
-    function startTracking() {
-      // Send location every 10 seconds
-      setInterval(async () => {
-        try {
-          const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 15000,
-              maximumAge: 0
-            });
-          });
-          await sendLocation(position);
-        } catch (e) {
-          console.error('Tracking error:', e);
-        }
-      }, 10000);
-    }
-    
-    async function sendLocation(position) {
-      const data = {
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        timestamp: Date.now(),
-        device_id: getDeviceId()
+      const options = {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
       };
       
-      try {
-        const response = await fetch(BACKEND_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data)
-        });
-        
-        if (response.ok) {
-          console.log('✓ Location sent:', data.lat.toFixed(5), data.lon.toFixed(5));
-        } else {
-          console.error('✗ Server error:', response.status);
-        }
-      } catch (e) {
-        console.error('✗ Network error:', e.message);
-      }
+      watchId = navigator.geolocation.watchPosition(onPosition, onError, options);
     }
+    
+    function stopTracking() {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      isTracking = false;
+      setStatus('pending', 'Stopped. Tap to restart.');
+      document.getElementById('startBtn').textContent = 'Approve & Start Sharing';
+      document.getElementById('startBtn').onclick = startTracking;
+    }
+    
+    // Auto-start if permission already granted
+    navigator.permissions.query({ name: 'geolocation' }).then(result => {
+      if (result.state === 'granted') {
+        startTracking();
+      } else if (result.state === 'prompt') {
+        setStatus('pending', 'Tap button to allow location');
+      } else if (result.state === 'denied') {
+        setStatus('error', 'Permission denied. Enable in Settings → Safari → Location');
+        document.getElementById('startBtn').disabled = true;
+      }
+    });
   </script>
 </body>
 </html>

@@ -11,7 +11,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overflow: hidden; }
     body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 360px 1fr; }
-    #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
+    #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; }
     header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
     header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success); animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
@@ -63,24 +63,6 @@
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     }
     
-    function parseCSVLine(line) {
-      const cols = [];
-      let current = '', inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          cols.push(current.trim().replace(/^"|"$/g, ''));
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      cols.push(current.trim().replace(/^"|"$/g, ''));
-      return cols;
-    }
-    
     function extractNumber(str) {
       if (!str) return 0;
       const match = str.match(/(-?[\d.]+)/);
@@ -89,42 +71,30 @@
     
     async function loadDevices() {
       try {
-        const res = await fetch('db/results.csv?v=1786360268&t=' + Date.now());
+        const res = await fetch('db/results.csv?t=' + Date.now());
         const text = await res.text();
         const lines = text.trim().split('\n');
         
-        console.log('CSV loaded:', lines.length, 'lines');
         devices = [];
         
         lines.forEach((line, idx) => {
-          const cols = parseCSVLine(line);
-          if (cols.length < 16) {
-            console.log('Line', idx, 'skipped (cols:', cols.length, ')');
-            return;
-          }
+          const cols = line.split(',');
+          if (cols.length < 17) return;
           
-          // Extract lat/lon from columns 17,18 (0-indexed: 16,17)
-          let lat = extractNumber(cols[16]);
-          let lon = extractNumber(cols[17]);
-          let acc = extractNumber(cols[18]);
+          // Extract from columns 17,18 (0-indexed: 16,17) - same as test.html
+          const latStr = (cols[16] || '').replace(/"/g, '').replace(' deg', '').trim();
+          const lonStr = (cols[17] || '').replace(/"/g, '').replace(' deg', '').trim();
           
-          // Fallback to columns 18,19 if needed
-          if (!lat || !lon) {
-            lat = extractNumber(cols[17]);
-            lon = extractNumber(cols[18]);
-            acc = extractNumber(cols[19]);
-          }
-          
-          console.log('Line', idx, '→ lat:', lat, 'lon:', lon);
+          const lat = parseFloat(latStr);
+          const lon = parseFloat(lonStr);
+          const acc = extractNumber(cols[18]);
           
           // Validate (Kuwait area: 28-31°N, 46-49°E)
           if (lat > 28 && lat < 31 && lon > 46 && lon < 49) {
             devices.push({ lat, lon, acc });
-            console.log('✓ Device added:', lat.toFixed(4), lon.toFixed(4));
           }
         });
         
-        console.log('Total devices:', devices.length);
         updateUI();
       } catch (e) {
         console.error('Load failed:', e);

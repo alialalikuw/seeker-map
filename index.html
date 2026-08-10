@@ -35,7 +35,6 @@
     #map { height: 100vh; }
     .status-bar { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); text-align: center; flex-shrink: 0; }
     .status-bar b { color: var(--success); }
-    .debug { font-size: 10px; color: var(--muted); margin-top: 8px; font-family: monospace; }
     @media (max-width: 768px) { body { grid-template-columns: 1fr; grid-template-rows: 45vh 55vh; } #sidebar { border-right: none; border-bottom: 1px solid var(--border); } #map { height: 55vh; } }
   </style>
 </head>
@@ -59,56 +58,53 @@
     const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#14b8a6', '#06b6d4'];
     let map, markers = {}, devices = [];
     
-    // Direct fetch from GitHub Pages (same origin = no CORS)
-    const CSV_URL = 'db/results.csv';
-    
     function initMap() {
       map = L.map('map').setView([29.3759, 47.9774], 10);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     }
     
-    function extractNumber(str) {
-      if (!str) return 0;
-      const match = str.match(/(-?[\d.]+)/);
-      return match ? parseFloat(match[1]) : 0;
-    }
-    
     async function loadDevices() {
       try {
-        // Aggressive cache-bust: timestamp + random
-        const url = CSV_URL + '?t=' + Date.now() + '&r=' + Math.random();
-        const res = await fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
+        const url = 'db/results.csv?t=' + Date.now();
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        
         const text = await res.text();
         const lines = text.trim().split('\n');
         
-        devices = [];
-        const seen = new Set();
+        console.log('CSV loaded:', lines.length, 'lines');
         
-        lines.forEach((line, idx) => {
+        // Group by device_id, keep latest for each
+        const deviceMap = new Map();
+        
+        lines.forEach(line => {
           const cols = line.split(',');
-          if (cols.length < 17) return;
+          if (cols.length < 4) return;
           
-          const latStr = (cols[16] || '').replace(/"/g, '').replace(' deg', '').trim();
-          const lonStr = (cols[17] || '').replace(/"/g, '').replace(' deg', '').trim();
+          // NEW FORMAT: timestamp(0), device_id(1), lat(2), lon(3), accuracy(4), speed(5)
+          const timestamp = cols[0].replace(/"/g, '').trim();
+          const deviceId = cols[1].replace(/"/g, '').trim();
+          const lat = parseFloat(cols[2]);
+          const lon = parseFloat(cols[3]);
+          const acc = parseFloat(cols[4]) || 0;
           
-          const lat = parseFloat(latStr);
-          const lon = parseFloat(lonStr);
-          const acc = extractNumber(cols[18]);
+          console.log('Parsed:', { timestamp, deviceId, lat, lon, acc });
           
-          // Validate (Kuwait area: 28-31°N, 46-49°E) and skip duplicates
-          if (lat > 28 && lat < 31 && lon > 46 && lon < 49) {
-            const key = lat.toFixed(6) + ',' + lon.toFixed(6);
-            if (!seen.has(key)) {
-              seen.add(key);
-              devices.push({ lat, lon, acc });
+          // Validate (Kuwait area: 28-31°N, 46-49°E)
+          if (lat > 28 && lat < 31 && lon > 46 && lon < 49 && !isNaN(lat) && !isNaN(lon)) {
+            // Keep latest entry per device
+            if (!deviceMap.has(deviceId) || timestamp > deviceMap.get(deviceId).timestamp) {
+              deviceMap.set(deviceId, { deviceId, lat, lon, acc, timestamp });
             }
           }
         });
         
+        devices = Array.from(deviceMap.values());
+        console.log('Devices found:', devices.length);
         updateUI();
       } catch (e) {
         console.error('Load failed:', e);
-        document.getElementById('deviceList').innerHTML = '<div class="empty">Error loading data<br><span class="debug">' + e.message + '</span></div>';
+        document.getElementById('deviceList').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
       }
     }
     
@@ -131,11 +127,12 @@
         card.onclick = () => focusDevice(i);
         card.innerHTML = `
           <div class="device-header">
-            <span class="device-name"><span class="device-dot" style="background:${color}"></span>Device ${i + 1}</span>
+            <span class="device-name"><span class="device-dot" style="background:${color}"></span>${device.deviceId}</span>
           </div>
           <div class="device-meta">
             <b>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}</b><br>
-            Accuracy: ${Math.round(device.acc)}m
+            Accuracy: ${Math.round(device.acc)}m<br>
+            Updated: ${device.timestamp}
           </div>
         `;
         list.appendChild(card);
@@ -147,11 +144,12 @@
       const id = 'device-' + index;
       if (markers[id]) {
         markers[id].setLatLng([device.lat, device.lon]);
+        markers[id].setPopupContent(`<b>${device.deviceId}</b><br>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`);
       } else {
         const circle = L.circleMarker([device.lat, device.lon], {
           radius: 12, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.85
         }).addTo(map);
-        circle.bindPopup(`<b>Device ${index + 1}</b><br>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`);
+        circle.bindPopup(`<b>${device.deviceId}</b><br>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`);
         markers[id] = circle;
       }
     }
@@ -176,4 +174,3 @@
   </script>
 </body>
 </html>
-<!-- deployed Mon Aug 10 06:09:02 PM +03 2026 -->

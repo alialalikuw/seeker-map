@@ -124,7 +124,7 @@
         lat: position.coords.latitude,
         lon: position.coords.longitude,
         accuracy: position.coords.accuracy,
-        timestamp: new Date().toISOString(),
+        timestamp: Date.now(),
         device_id: getDeviceId()
       };
       

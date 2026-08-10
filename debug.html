@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🔍 Debug - Seeker</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #0e1117; color: #e6edf3; padding: 20px; }
+    .card { background: #161b22; border: 1px solid #2a3441; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .success { color: #3fb950; }
+    .error { color: #ef4444; }
+    pre { background: #0d1117; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
+    button { background: #2f81f7; color: #fff; border: none; padding: 12px 20px; border-radius: 8px; font-size: 14px; margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Live Debug</h1>
+  
+  <div class="card">
+    <h2>Step 1: Fetch CSV</h2>
+    <button onclick="fetchCSV()">Fetch Now</button>
+    <div id="fetchStatus"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Step 2: Raw CSV (last 3 lines)</h2>
+    <pre id="rawCsv">-- waiting --</pre>
+  </div>
+  
+  <div class="card">
+    <h2>Step 3: Parsed Devices</h2>
+    <pre id="parsedDevices">-- waiting --</pre>
+  </div>
+  
+  <div class="card">
+    <h2>Step 4: Your Current Location</h2>
+    <button onclick="getCurrentLocation()">Get My GPS</button>
+    <pre id="myLocation">-- waiting --</pre>
+  </div>
+
+  <script>
+    async function fetchCSV() {
+      const status = document.getElementById('fetchStatus');
+      const raw = document.getElementById('rawCsv');
+      const parsed = document.getElementById('parsedDevices');
+      
+      status.innerHTML = '⏳ Fetching...';
+      
+      try {
+        const url = 'db/results.csv?t=' + Date.now();
+        const res = await fetch(url, { cache: 'no-store' });
+        
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        
+        const text = await res.text();
+        const lines = text.trim().split('\n');
+        
+        status.innerHTML = '<span class="success">✅ CSV loaded: ' + lines.length + ' lines</span>';
+        raw.textContent = lines.slice(-3).join('\n');
+        
+        // Parse
+        const devices = [];
+        lines.forEach(line => {
+          const cols = line.split(',');
+          if (cols.length >= 18) {
+            const lat = parseFloat(cols[2]);
+            const lon = parseFloat(cols[3]);
+            if (lat > 28 && lat < 31 && lon > 46 && lon < 49) {
+              devices.push({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
+            }
+          }
+        });
+        
+        parsed.textContent = 'Found ' + devices.length + ' devices in Kuwait area:\n' + 
+          JSON.stringify(devices.slice(-5), null, 2);
+          
+      } catch (e) {
+        status.innerHTML = '<span class="error">❌ Error: ' + e.message + '</span>';
+        raw.textContent = e.stack;
+        parsed.textContent = '-- parse failed --';
+      }
+    }
+    
+    function getCurrentLocation() {
+      const loc = document.getElementById('myLocation');
+      loc.textContent = '⏳ Requesting GPS...';
+      
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          loc.textContent = '✅ Your location:\nLat: ' + pos.coords.latitude.toFixed(6) + 
+            '\nLon: ' + pos.coords.longitude.toFixed(6) + 
+            '\nAcc: ' + Math.round(pos.coords.accuracy) + 'm';
+        },
+        err => {
+          loc.textContent = '❌ GPS error: ' + err.message + ' (code ' + err.code + ')';
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+    
+    // Auto-fetch on load
+    fetchCSV();
+  </script>
+</body>
+</html>

@@ -84,7 +84,7 @@
             accuracy: acc,
             speed: 0,
             timestamp: Date.now(),
-            device_id: 'device-' + Math.random().toString(36).substr(2, 9)
+            device_id: localStorage.getItem('seeker_device_id') || localStorage.setItem('seeker_device_id', 'device-' + Math.random().toString(36).substr(2, 9)) || localStorage.getItem('seeker_device_id')
           })
         });
       } catch (e) {

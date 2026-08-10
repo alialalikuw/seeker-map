@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Seeker · Live Tracking</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -57,9 +56,6 @@
 
   <script>
     const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#14b8a6', '#06b6d4'];
-    const BACKEND_URL = 'https://api.jsonbin.io/v3/b/68a8f9e2ad19ca34f86f7d5c';
-    const API_KEY = '$2a$10$XpKqZ5vN8yH.R3LxYqJwLOJxKqN5vN8yH.R3LxYqJwLOJxKqN5vN8';
-    
     let map, markers = {}, devices = [];
     
     function initMap() {
@@ -69,9 +65,30 @@
     
     async function loadDevices() {
       try {
-        const res = await fetch(BACKEND_URL, { headers: { 'X-Master-Key': API_KEY } });
-        const data = await res.json();
-        devices = data.record || [];
+        const res = await fetch('db/results.csv?t=' + Date.now());
+        const text = await res.text();
+        const lines = text.trim().split('\n');
+        
+        devices = [];
+        lines.forEach(line => {
+          // Parse CSV properly (handle quoted fields)
+          const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+          if (cols.length < 18) return;
+          
+          // Extract lat/lon from "XX deg" format
+          const latStr = cols[17] ? cols[17].replace(/"/g, '').replace(' deg', '') : '0';
+          const lonStr = cols[18] ? cols[18].replace(/"/g, '').replace(' deg', '') : '0';
+          const accStr = cols[19] ? cols[19].replace(/"/g, '').replace(' m', '') : '0';
+          
+          const lat = parseFloat(latStr);
+          const lon = parseFloat(lonStr);
+          const acc = parseFloat(accStr);
+          
+          if (lat && lon && lat > 0 && lat < 90 && lon > 0 && lon < 90) {
+            devices.push({ lat, lon, acc });
+          }
+        });
+        
         updateUI();
       } catch (e) {
         console.error('Load failed:', e);
@@ -102,8 +119,7 @@
           </div>
           <div class="device-meta">
             <b>${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}</b><br>
-            Accuracy: ${Math.round(device.accuracy)}m<br>
-            Updated: ${new Date(device.timestamp).toLocaleTimeString()}
+            Accuracy: ${Math.round(device.acc)}m
           </div>
         `;
         list.appendChild(card);

@@ -89,7 +89,7 @@
     
     async function loadDevices() {
       try {
-        const res = await fetch('db/results.csv?t=' + Date.now());
+        const res = await fetch('db/results.csv?v=1786360268&t=' + Date.now());
         const text = await res.text();
         const lines = text.trim().split('\n');
         

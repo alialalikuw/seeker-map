@@ -40,3 +40,4 @@ timestamp,device_id,lat,lon,accuracy,speed
 "2026-08-10 16:33:05",device-jcxoqghlp,29.314826880281,48.019281694352,36.357590128237,0
 "2026-08-10 16:33:06",device-jcxoqghlp,29.314826879535,48.01928169383,36.357962123722,0
 "2026-08-10 16:33:05",device-jcxoqghlp,29.314831305689,48.019295525832,17.489811689078,0
+Intel Mac OS X 10_15_7,MacIntel,4,Not Available,Apple Inc.,Apple GPU,428x926,Safari/605.1.15,2a04:4e41:1802:ef2a::391f:bf2a,Asia,Kuwait,Al Asimah Governorate,Kuwait City,"Fastly, Inc.","Fastly, Inc.",29.34838785213726 deg,47.94410236309429 deg,25.896091357467817 m,9.93555083390445 m,Not Available,Not Available

@@ -1,2 +1,1 @@
-1.1.1.1,Device One,30,29.0,48.0,2026-08-11,Phone1,Safari,iOS,iOS
-Intel Mac OS X 10_15_7,MacIntel,4,Not Available,Apple Inc.,Apple GPU,428x926,Safari/605.1.15,2a09:bac3:4729:26e6::3e0:5d,Asia,Kuwait,Al Asimah Governorate,Kuwait City,"Cloudflare London, LLC","Cloudflare, Inc.",29.31482160088055 deg,48.01929164763427 deg,15.332533762985493 m,29.63324443529401 m,Not Available,Not Available
+timestamp,device_id,lat,lon,accuracy,speed
